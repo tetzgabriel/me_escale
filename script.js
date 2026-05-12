@@ -125,8 +125,10 @@ document.addEventListener('DOMContentLoaded', () => {
             startTime: document.getElementById('start-hour').value,
             endTime: document.getElementById('end-hour').value,
             name: document.getElementById('activity-name').value,
+            type: document.getElementById('activity-type').value,
             location: document.getElementById('location').value,
             studentsCount: parseInt(document.getElementById('students-number').value),
+            minStudents: parseInt(document.getElementById('min-students-number').value) || 1,
             hoursCount: parseFloat(document.getElementById('hours-count').value),
             exceptions: [...currentExceptions]
         };
@@ -500,12 +502,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             card.innerHTML = `
                 <div class="activity-info">
-                    <h3>${activity.name}</h3>
+                    <h3>${activity.name} <span class="type-badge">${activity.type || 'PLANTÃO'}</span></h3>
                     <div class="activity-details">
                         <span><strong>Dia:</strong> ${dayTranslations[activity.day]}</span>
                         <span><strong>Horário:</strong> ${activity.startTime} - ${activity.endTime}</span>
                         <span><strong>Local:</strong> ${activity.location}</span>
-                        <span><strong>Alunos:</strong> ${activity.studentsCount}</span>
+                        <span><strong>Alunos:</strong> ${activity.minStudents || 1}-${activity.studentsCount}</span>
                         <span><strong>Horas:</strong> ${activity.hoursCount}</span>
                     </div>
                     ${exceptionsHtml}
@@ -549,12 +551,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     <input type="text" id="edit-activity-name" value="${activity.name}" required>
                 </div>
                 <div class="form-group">
+                    <label>Tipo de Atividade</label>
+                    <select id="edit-activity-type" required>
+                        <option value="PLANTÃO" ${activity.type === 'PLANTÃO' ? 'selected' : ''}>PLANTÃO</option>
+                        <option value="AMBULATORIO" ${activity.type === 'AMBULATORIO' ? 'selected' : ''}>AMBULATORIO</option>
+                    </select>
+                </div>
+                <div class="form-group">
                     <label>Local</label>
                     <input type="text" id="edit-location" value="${activity.location}" required>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label>Número de Alunos</label>
+                        <label>Alunos (Mín)</label>
+                        <input type="number" id="edit-min-students" value="${activity.minStudents || 1}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Alunos (Máx)</label>
                         <input type="number" id="edit-students-number" value="${activity.studentsCount}" required>
                     </div>
                     <div class="form-group">
@@ -611,7 +624,9 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('edit-activity-form').onsubmit = (e) => {
             e.preventDefault();
             activity.name = document.getElementById('edit-activity-name').value;
+            activity.type = document.getElementById('edit-activity-type').value;
             activity.location = document.getElementById('edit-location').value;
+            activity.minStudents = parseInt(document.getElementById('edit-min-students').value) || 1;
             activity.studentsCount = parseInt(document.getElementById('edit-students-number').value);
             activity.hoursCount = parseFloat(document.getElementById('edit-hours-count').value);
             activity.exceptions = modalExceptions;
@@ -793,7 +808,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }).join('');
 
                         const names = slot.assigned.length > 0 ? slot.assigned.join(', ') : 'Vazio';
-                        eventEl.title = `${slot.activity.name} (${slot.activity.startTime}-${slot.activity.endTime})\nAtribuído: ${names}`;
+                        eventEl.title = `${slot.activity.name} [${slot.activity.type || 'PLANTÃO'}] (${slot.activity.startTime}-${slot.activity.endTime})\nAtribuído: ${names}`;
                         
                         eventEl.innerHTML = `
                             <div class="event-time-name">${slot.activity.startTime} ${slot.activity.name}</div>
@@ -1192,14 +1207,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 scheduleHtml += `
                     <div class="schedule-item ${isEmpty ? 'empty' : ''}">
-                        <h4>${slot.activity.name}</h4>
+                        <h4>${slot.activity.name} <span class="type-badge">${slot.activity.type || 'PLANTÃO'}</span></h4>
                         <div class="schedule-item-details">
                             <span>🕒 ${slot.activity.startTime} - ${slot.activity.endTime}</span> | 
                             <span>📍 ${slot.activity.location}</span>
                         </div>
                         <div class="assigned-students">
                             Atribuídos: ${slot.assigned.length > 0 ? slot.assigned.join(', ') : 'Nenhum'} 
-                            (${slot.capacityString})
+                            (Mín: ${slot.activity.minStudents || 1} | ${slot.capacityString})
                         </div>
                         ${diagHtml}
                     </div>
@@ -1244,7 +1259,7 @@ document.addEventListener('DOMContentLoaded', () => {
     csvExportBtn.addEventListener('click', () => {
         if (!lastGeneratedSchedule) return;
 
-        let csvContent = "Data,Dia,Atividade,Horário,Local,Alunos Atribuídos\n";
+        let csvContent = "Data,Dia,Atividade,Tipo,Horário,Local,Alunos Atribuídos\n";
         
         const dayTranslations = {
             'Monday': 'Segunda-feira', 'Tuesday': 'Terça-feira', 'Wednesday': 'Quarta-feira',
@@ -1258,6 +1273,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     day.date,
                     dayTranslations[day.dayName] || day.dayName,
                     `"${slot.activity.name}"`,
+                    `"${slot.activity.type || 'PLANTÃO'}"`,
                     `"${slot.activity.startTime} - ${slot.activity.endTime}"`,
                     `"${slot.activity.location}"`,
                     `"${assigned}"`

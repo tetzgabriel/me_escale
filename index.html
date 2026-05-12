@@ -65,14 +65,26 @@
                 </div>
                 
                 <div class="form-group">
+                    <label for="activity-type">Tipo de Atividade</label>
+                    <select id="activity-type" required>
+                        <option value="PLANTÃO">PLANTÃO</option>
+                        <option value="AMBULATORIO">AMBULATORIO</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
                     <label for="location">Local</label>
                     <input type="text" id="location" placeholder="ex: Hospital Universitário" required>
                 </div>
                 
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="students-number">Número de Alunos</label>
+                        <label for="students-number">Número de Alunos (Máx)</label>
                         <input type="number" id="students-number" min="1" placeholder="ex: 4" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="min-students-number">Mínimo de Alunos</label>
+                        <input type="number" id="min-students-number" min="0" value="1" placeholder="ex: 1" required>
                     </div>
                     <div class="form-group">
                         <label for="hours-count">Carga Horária</label>
