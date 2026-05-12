@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Escala de Rodízio</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📅</text></svg>">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Escala de Rodízio</h1>
+        
+        <section class="global-settings">
+            <h2>Período da Escala e Requisitos</h2>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="rotation-start">Data de Início</label>
+                    <input type="date" id="rotation-start">
+                </div>
+                <div class="form-group">
+                    <label for="rotation-end">Data de Término</label>
+                    <input type="date" id="rotation-end">
+                </div>
+                <div class="form-group">
+                    <label for="required-hours">Horas por Aluno</label>
+                    <input type="number" id="required-hours" min="0" step="0.5" placeholder="ex: 40">
+                </div>
+            </div>
+            <button type="button" id="save-global-dates">Salvar Configurações</button>
+        </section>
+
+        <p>Insira as atividades clínicas para montar sua escala.</p>
+        
+        <section class="form-section">
+            <form id="activity-form">
+                <div class="form-group">
+                    <label for="day">Dia da Semana</label>
+                    <select id="day" required>
+                        <option value="">Selecione um dia</option>
+                        <option value="Monday">Segunda-feira</option>
+                        <option value="Tuesday">Terça-feira</option>
+                        <option value="Wednesday">Quarta-feira</option>
+                        <option value="Thursday">Quinta-feira</option>
+                        <option value="Friday">Sexta-feira</option>
+                        <option value="Saturday">Sábado</option>
+                        <option value="Sunday">Domingo</option>
+                    </select>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="start-hour">Hora de Início</label>
+                        <input type="time" id="start-hour" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="end-hour">Hora de Término</label>
+                        <input type="time" id="end-hour" required>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="activity-name">Nome da Atividade</label>
+                    <input type="text" id="activity-name" placeholder="ex: Pediatria" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="location">Local</label>
+                    <input type="text" id="location" placeholder="ex: Hospital Universitário" required>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="students-number">Número de Alunos</label>
+                        <input type="number" id="students-number" min="1" placeholder="ex: 4" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="hours-count">Carga Horária</label>
+                        <input type="number" id="hours-count" step="0.5" min="0" placeholder="ex: 4.5" required>
+                    </div>
+                </div>
+
+                <div class="exceptions-section">
+                    <label>Exceções (Dias em que a atividade não ocorrerá)</label>
+                    <div class="form-row">
+                        <input type="date" id="exception-date">
+                        <button type="button" id="add-exception-btn" class="secondary-btn">Adicionar Exceção</button>
+                    </div>
+                    <div id="current-exceptions-list" class="tag-container"></div>
+                </div>
+                
+                <button type="submit" id="submit-btn">Adicionar Atividade</button>
+            </form>
+        </section>
+
+        <section class="list-section">
+            <h2>Lista de Atividades</h2>
+            <div id="activities-container">
+                <p class="empty-msg">Nenhuma atividade adicionada ainda.</p>
+            </div>
+        </section>
+
+        <section class="form-section student-section">
+            <h2>Gerenciamento de Alunos</h2>
+            <form id="student-form">
+                <div class="form-group">
+                    <label for="student-name">Nome do Aluno</label>
+                    <input type="text" id="student-name" placeholder="ex: João Silva" required>
+                </div>
+
+                <div class="preferences-section">
+                    <label>Datas e Horários Preferenciais (Horários opcionais, vazio = dia todo)</label>
+                    <div class="form-row time-input-row">
+                        <input type="date" id="student-preferred-date">
+                        <div class="time-range">
+                            <input type="time" id="student-pref-start">
+                            <span>até</span>
+                            <input type="time" id="student-pref-end">
+                        </div>
+                        <button type="button" id="add-student-preferred-btn" class="secondary-btn preferred-btn">Adicionar Preferência</button>
+                    </div>
+                    <div id="current-student-preferred-list" class="tag-container"></div>
+                </div>
+
+                <div class="exceptions-section">
+                    <label>Exceções e Horários do Aluno (Indisponibilidade, vazio = dia todo)</label>
+                    <div class="form-row time-input-row">
+                        <input type="date" id="student-exception-date">
+                        <div class="time-range">
+                            <input type="time" id="student-exc-start">
+                            <span>até</span>
+                            <input type="time" id="student-exc-end">
+                        </div>
+                        <button type="button" id="add-student-exception-btn" class="secondary-btn">Adicionar Exceção</button>
+                    </div>
+                    <div id="current-student-exceptions-list" class="tag-container"></div>
+                </div>
+
+                <button type="submit" id="student-submit-btn">Adicionar Aluno</button>
+            </form>
+        </section>
+
+        <section class="list-section">
+            <h2>Lista de Alunos</h2>
+            <div id="students-container">
+                <p class="empty-msg">Nenhum aluno adicionado ainda.</p>
+            </div>
+        </section>
+
+        <section class="generator-section">
+            <button type="button" id="generate-btn">Gerar Escala de Rodízio</button>
+            <div id="health-warning" class="hidden health-alert"></div>
+            <div id="results-container" class="hidden">
+                <div class="results-header">
+                    <h2>Escala Gerada</h2>
+                    <div class="view-controls">
+                        <div class="view-toggle">
+                            <button type="button" id="list-view-btn" class="toggle-btn active">Lista</button>
+                            <button type="button" id="calendar-view-btn" class="toggle-btn">Calendário</button>
+                        </div>
+                        <div class="action-btns">
+                            <button type="button" id="csv-export-btn" class="secondary-btn success-btn">Exportar para CSV (Excel)</button>
+                            <button type="button" id="print-btn" class="secondary-btn">Imprimir / PDF</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="statistics-output"></div>
+                <div id="schedule-output"></div>
+                <div id="calendar-output" class="hidden"></div>
+            </div>
+        </section>
+
+        <section class="data-management">
+            <h2>Gerenciamento de Dados</h2>
+            <p class="data-help">Exporte seus dados para salvar um backup ou importe um arquivo de backup anterior (JSON).</p>
+            <div class="btn-group">
+                <button type="button" id="export-btn" class="backup-btn export">Exportar JSON (Backup Completo)</button>
+                <button type="button" id="import-btn" class="backup-btn import">Importar JSON (Backup Completo)</button>
+                <input type="file" id="import-file" accept=".json" style="display: none;">
+            </div>
+        </section>
+    </div>
+
+    <!-- Edit Modal -->
+    <div id="edit-modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h2 id="modal-title">Editar</h2>
+            <div id="modal-body"></div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
