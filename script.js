@@ -936,7 +936,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
             activities.forEach(a => {
                 if (a.day === dayName && (!a.exceptions || !a.exceptions.includes(dateStr))) {
-                    totalMinimumActivityHours += a.hoursCount;
+                    totalMinimumActivityHours += a.hoursCount * (a.minStudents || 1);
                     allPotentialSlots.push({
                         dateStr,
                         dayName,
@@ -992,7 +992,7 @@ document.addEventListener('DOMContentLoaded', () => {
             slot._scarcity = students.filter(student => isStudentEligible(student, slot.dateStr, slot.activity, [])).length;
         });
 
-        // 2. Global Phase 1: Minimum Staffing (Guarantee 1 person per activity)
+        // 2. Global Phase 1: Minimum Staffing (Guarantee MINIMUM people per activity)
         // Sort by scarcity (hardest first) + random for Monte Carlo
         const phase1Order = [...allSlots].sort((a, b) => (a._scarcity - b._scarcity) || (Math.random() - 0.5));
         const dailyAssignments = {}; // { dateStr: [ {studentId, start, end} ] }
@@ -1001,31 +1001,44 @@ document.addEventListener('DOMContentLoaded', () => {
             const dateStr = slot.dateStr;
             if (!dailyAssignments[dateStr]) dailyAssignments[dateStr] = [];
 
-            const eligible = students.filter(s => isStudentEligible(s, dateStr, slot.activity, dailyAssignments[dateStr]));
-            
-            if (eligible.length > 0) {
-                // Pick student who needs hours most OR has fewest hours
-                eligible.sort((a, b) => {
-                    const statsA = studentStats.find(st => st.id === a.id);
-                    const statsB = studentStats.find(st => st.id === b.id);
-                    return statsA.totalHours - statsB.totalHours || (Math.random() - 0.5);
-                });
+            const targetMin = slot.activity.minStudents || 1;
 
-                const chosen = eligible[0];
-                const stats = studentStats.find(st => st.id === chosen.id);
+            while (slot.assignedIds.length < targetMin) {
+                const eligible = students.filter(s => 
+                    !slot.assignedIds.includes(s.id) && 
+                    isStudentEligible(s, dateStr, slot.activity, dailyAssignments[dateStr])
+                );
                 
-                slot.assignedIds.push(chosen.id);
-                stats.totalHours += slot.activity.hoursCount;
-                dailyAssignments[dateStr].push({ studentId: chosen.id, startTime: slot.activity.startTime, endTime: slot.activity.endTime });
-            } else {
-                // Diagnostic tracking for failures
-                let rejectedException = 0;
-                let rejectedOverlap = 0;
-                students.forEach(s => {
-                    if (hasException(s, dateStr, slot.activity)) rejectedException++;
-                    else if (hasOverlap(s, dateStr, slot.activity, dailyAssignments[dateStr])) rejectedOverlap++;
-                });
-                slot.diagnostics = `Não foi possível preencher. ${rejectedException} exceções, ${rejectedOverlap} sobreposições.`;
+                if (eligible.length > 0) {
+                    // Pick student who needs hours most OR has fewest hours
+                    eligible.sort((a, b) => {
+                        const statsA = studentStats.find(st => st.id === a.id);
+                        const statsB = studentStats.find(st => st.id === b.id);
+                        return statsA.totalHours - statsB.totalHours || (Math.random() - 0.5);
+                    });
+
+                    const chosen = eligible[0];
+                    const stats = studentStats.find(st => st.id === chosen.id);
+                    
+                    slot.assignedIds.push(chosen.id);
+                    stats.totalHours += slot.activity.hoursCount;
+                    dailyAssignments[dateStr].push({ studentId: chosen.id, startTime: slot.activity.startTime, endTime: slot.activity.endTime });
+                } else {
+                    // Diagnostic tracking for failures
+                    let rejectedException = 0;
+                    let rejectedOverlap = 0;
+                    students.forEach(s => {
+                        if (hasException(s, dateStr, slot.activity)) rejectedException++;
+                        else if (hasOverlap(s, dateStr, slot.activity, dailyAssignments[dateStr])) rejectedOverlap++;
+                    });
+                    
+                    if (slot.assignedIds.length === 0) {
+                        slot.diagnostics = `Não foi possível preencher. ${rejectedException} exceções, ${rejectedOverlap} sobreposições.`;
+                    } else {
+                        slot.diagnostics = `Mínimo de ${targetMin} não atingido (atribuídos: ${slot.assignedIds.length}).`;
+                    }
+                    break; 
+                }
             }
         });
 
@@ -1126,9 +1139,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function calculateScore({ finalSchedule, studentStats }) {
         let emptyCount = 0;
+        let understaffedPenalty = 0;
         finalSchedule.forEach(day => {
             day.slots.forEach(slot => {
-                if (slot.assigned.length === 0) emptyCount++;
+                const assigned = slot.assigned.length;
+                const min = slot.activity.minStudents || 1;
+                
+                if (assigned === 0) {
+                    emptyCount++;
+                } else if (assigned < min) {
+                    understaffedPenalty += (min - assigned);
+                }
             });
         });
 
@@ -1137,8 +1158,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const avg = hours.reduce((a, b) => a + b, 0) / hours.length;
         const variance = hours.reduce((a, b) => a + Math.pow(b - avg, 2), 0) / hours.length;
 
-        // Score: Primary penalty for empty slots, secondary for imbalance
-        return (emptyCount * 1000000) + variance;
+        // Score: Primary penalty for empty slots, secondary for understaffed, tertiary for imbalance
+        return (emptyCount * 1000000) + (understaffedPenalty * 100000) + variance;
     }
 
     function checkOverlap(start1, end1, start2, end2) {
