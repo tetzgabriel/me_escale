@@ -219,8 +219,44 @@ button:hover {
     background-color: #2980b9;
 }
 
+.collapsible-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    background: #f8f9fa;
+    padding: 10px 15px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    margin-bottom: 10px;
+    transition: background 0.3s;
+}
+
+.collapsible-header:hover {
+    background: #eee;
+}
+
+.collapsible-header h2 {
+    margin-bottom: 0;
+    font-size: 1.2rem;
+}
+
+.toggle-icon {
+    transition: transform 0.3s;
+    font-size: 0.8rem;
+    color: #666;
+}
+
+.collapsible-header.active .toggle-icon {
+    transform: rotate(90deg);
+}
+
+.collapsible-content.hidden {
+    display: none;
+}
+
 .list-section h2 {
-    margin-bottom: 20px;
+    margin-bottom: 0;
 }
 
 #activities-container {

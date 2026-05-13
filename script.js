@@ -79,6 +79,26 @@ document.addEventListener('DOMContentLoaded', () => {
     renderActivities();
     renderStudents();
 
+    // Toggle Activities List
+    const toggleActivitiesBtn = document.getElementById('toggle-activities');
+    if (toggleActivitiesBtn) {
+        toggleActivitiesBtn.addEventListener('click', () => {
+            const content = document.getElementById('activities-container');
+            toggleActivitiesBtn.classList.toggle('active');
+            content.classList.toggle('hidden');
+        });
+    }
+
+    // Toggle Students List
+    const toggleStudentsBtn = document.getElementById('toggle-students');
+    if (toggleStudentsBtn) {
+        toggleStudentsBtn.addEventListener('click', () => {
+            const content = document.getElementById('students-container');
+            toggleStudentsBtn.classList.toggle('active');
+            content.classList.toggle('hidden');
+        });
+    }
+
     // Global dates handler
     saveGlobalBtn.addEventListener('click', () => {
         rotationConfig.startDate = document.getElementById('rotation-start').value;
