@@ -952,9 +952,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 5. Re-render UI
         renderGeneratedResults(lastGeneratedSchedule);
-        if (calendarViewBtn.classList.contains('active')) {
-            renderCalendarView(lastGeneratedSchedule.finalSchedule);
-        }
+        renderCalendarView(lastGeneratedSchedule.finalSchedule);
     }
 
     function recalculateAllStats() {
@@ -1532,9 +1530,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (lastGeneratedSchedule) {
                         recalculateAllStats();
                         renderGeneratedResults(lastGeneratedSchedule);
-                        if (calendarViewBtn.classList.contains('active')) {
-                            renderCalendarView(lastGeneratedSchedule.finalSchedule);
-                        }
+                        renderCalendarView(lastGeneratedSchedule.finalSchedule);
                     } else {
                         resultsContainer.classList.add('hidden');
                     }
@@ -1547,6 +1543,48 @@ document.addEventListener('DOMContentLoaded', () => {
             importFile.value = '';
         };
         reader.readAsText(file);
+    });
+
+    // Delete All Data
+    const deleteAllBtn = document.getElementById('delete-all-btn');
+    deleteAllBtn.addEventListener('click', () => {
+        if (confirm('Tem certeza de que deseja excluir TODOS os dados? Esta ação não pode ser desfeita.')) {
+            // Clear localStorage
+            localStorage.removeItem('med_rotations_activities');
+            localStorage.removeItem('med_rotations_config');
+            localStorage.removeItem('med_rotations_students');
+
+            // Reset state
+            activities = [];
+            students = [];
+            rotationConfig = {
+                startDate: '',
+                endDate: '',
+                requiredHours: 0
+            };
+            lastGeneratedSchedule = null;
+            currentExceptions = [];
+            currentStudentExceptions = [];
+            currentStudentPreferred = [];
+
+            // Update UI
+            document.getElementById('rotation-start').value = '';
+            document.getElementById('rotation-end').value = '';
+            document.getElementById('required-hours').value = '';
+            
+            activityForm.reset();
+            studentForm.reset();
+            
+            renderActivities();
+            renderStudents();
+            renderExceptionChips();
+            renderStudentExceptionChips();
+            renderStudentPreferredChips();
+            
+            resultsContainer.classList.add('hidden');
+            
+            alert('Todos os dados foram excluídos com sucesso.');
+        }
     });
 
     function saveActivities() {

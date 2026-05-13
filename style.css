@@ -525,6 +525,14 @@ button:hover {
     background-color: #e67e22;
 }
 
+.backup-btn.delete {
+    background-color: var(--error-color);
+}
+
+.backup-btn.delete:hover {
+    background-color: #c0392b;
+}
+
 .generator-section {
     margin: 40px 0;
     text-align: center;
