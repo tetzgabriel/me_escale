@@ -1134,12 +1134,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // 3. Global Phase 2: Sparse Goal Fulfillment (Fill remaining seats only if students need hours)
-        const phase2Order = [...allSlots].sort(() => Math.random() - 0.5);
-        phase2Order.forEach(slot => {
+        const fillSlotToTarget = (slot, limit) => {
             const dateStr = slot.dateStr;
-            
-            while (slot.assignedIds.length < slot.activity.studentsCount) {
+            while (slot.assignedIds.length < limit) {
                 const eligible = students.filter(s => 
                     !slot.assignedIds.includes(s.id) && 
                     isStudentEligible(s, dateStr, slot.activity, dailyAssignments[dateStr])
@@ -1192,6 +1189,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 dailyAssignments[dateStr].push({ studentId: chosen.id, startTime: slot.activity.startTime, endTime: slot.activity.endTime });
             }
+        };
+
+        // 3. Global Phase 2: Targeted Staffing (Fill up to the MEDIUM point)
+        const phase2Order = [...allSlots].sort(() => Math.random() - 0.5);
+        phase2Order.forEach(slot => {
+            const min = slot.activity.minStudents || 1;
+            const max = slot.activity.studentsCount;
+            const ideal = Math.ceil((min + max) / 2);
+            fillSlotToTarget(slot, ideal);
+        });
+
+        // 4. Global Phase 3: Final Staffing (Fill up to MAX if students still need hours/coverage)
+        const phase3Order = [...allSlots].sort(() => Math.random() - 0.5);
+        phase3Order.forEach(slot => {
+            fillSlotToTarget(slot, slot.activity.studentsCount);
         });
 
         // 4. Format for UI
@@ -1257,16 +1269,24 @@ document.addEventListener('DOMContentLoaded', () => {
         let understaffedPenalty = 0;
         let coveragePenalty = 0;
         let affinityBonus = 0;
+        let distributionPenalty = 0;
 
         finalSchedule.forEach(day => {
             day.slots.forEach(slot => {
                 const assigned = slot.assigned.length;
                 const min = slot.activity.minStudents || 1;
+                const max = slot.activity.studentsCount;
+                const ideal = Math.ceil((min + max) / 2);
                 
                 if (assigned === 0) {
                     emptyCount++;
                 } else if (assigned < min) {
                     understaffedPenalty += (min - assigned);
+                }
+
+                // Distribution Penalty: Favor being close to the medium
+                if (assigned > 0) {
+                    distributionPenalty += Math.abs(assigned - ideal) * 10;
                 }
 
                 // Affinity Reward: Check pairs within the slot
@@ -1304,6 +1324,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return (emptyCount * 1000000) + 
                (understaffedPenalty * 100000) + 
                (coveragePenalty * 1000) + 
+               distributionPenalty +
                variance - affinityBonus;
     }
 
