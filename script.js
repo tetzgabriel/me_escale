@@ -895,6 +895,60 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (grid.children.length > 7) { // Only add month if it has at least one week with activities
                 monthDiv.appendChild(grid);
+
+                // --- Student Roster for this month ---
+                const rosterDiv = document.createElement('div');
+                rosterDiv.className = 'calendar-roster';
+                rosterDiv.innerHTML = '<h4>Alunos (Arraste para atribuir ou remover)</h4>';
+                
+                const rosterList = document.createElement('div');
+                rosterList.className = 'roster-list';
+                
+                students.forEach(student => {
+                    const studentTag = document.createElement('span');
+                    studentTag.className = 'calendar-student-tag roster-item';
+                    studentTag.draggable = true;
+                    studentTag.innerHTML = `<span class="color-dot" style="background-color: ${student.color}"></span>${student.name}`;
+                    
+                    studentTag.addEventListener('dragstart', (e) => {
+                        e.dataTransfer.setData('text/plain', student.name);
+                        e.dataTransfer.setData('source-date', 'roster');
+                        e.dataTransfer.setData('source-activity-id', 'roster');
+                        studentTag.classList.add('dragging');
+                    });
+                    
+                    studentTag.addEventListener('dragend', () => {
+                        studentTag.classList.remove('dragging');
+                    });
+                    
+                    rosterList.appendChild(studentTag);
+                });
+
+                // Make roster a drop target for unassignment
+                rosterDiv.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    rosterDiv.classList.add('drag-over');
+                });
+
+                rosterDiv.addEventListener('dragleave', () => {
+                    rosterDiv.classList.remove('drag-over');
+                });
+
+                rosterDiv.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    rosterDiv.classList.remove('drag-over');
+                    const studentName = e.dataTransfer.getData('text/plain');
+                    const sourceDate = e.dataTransfer.getData('source-date');
+                    const sourceActivityId = e.dataTransfer.getData('source-activity-id');
+                    
+                    if (sourceDate !== 'roster') {
+                        handleStudentUnassignment(studentName, sourceDate, sourceActivityId);
+                    }
+                });
+
+                rosterDiv.appendChild(rosterList);
+                monthDiv.appendChild(rosterDiv);
+                
                 calendarOutput.appendChild(monthDiv);
             }
 
@@ -911,16 +965,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const { finalSchedule } = lastGeneratedSchedule;
 
-        // 1. Find source and target slots
-        const sourceDay = finalSchedule.find(d => d.date === sourceDate);
+        // 1. Find target slot
         const targetDay = finalSchedule.find(d => d.date === targetDate);
-        
-        if (!sourceDay || !targetDay) return;
-
-        const sourceSlot = sourceDay.slots.find(s => s.activity.id == sourceActivityId);
+        if (!targetDay) return;
         const targetSlot = targetDay.slots.find(s => s.activity.id == targetActivityId);
-
-        if (!sourceSlot || !targetSlot) return;
+        if (!targetSlot) return;
 
         // 2. Check if student already in target
         if (targetSlot.assigned.includes(studentName)) {
@@ -943,19 +992,47 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // 3. Perform move
-        sourceSlot.assigned = sourceSlot.assigned.filter(n => n !== studentName);
-        sourceSlot.capacityString = `${sourceSlot.assigned.length}/${sourceSlot.activity.studentsCount}`;
+        // 3. Perform removal from source (if not from roster)
+        if (sourceDate !== 'roster') {
+            const sourceDay = finalSchedule.find(d => d.date === sourceDate);
+            if (sourceDay) {
+                const sourceSlot = sourceDay.slots.find(s => s.activity.id == sourceActivityId);
+                if (sourceSlot) {
+                    sourceSlot.assigned = sourceSlot.assigned.filter(n => n !== studentName);
+                    sourceSlot.capacityString = `${sourceSlot.assigned.length}/${sourceSlot.activity.studentsCount}`;
+                }
+            }
+        }
         
+        // 4. Perform addition to target
         targetSlot.assigned.push(studentName);
         targetSlot.capacityString = `${targetSlot.assigned.length}/${targetSlot.activity.studentsCount}`;
 
-        // 4. Update Math (Recalculate all student stats)
+        // 5. Update Math (Recalculate all student stats)
         recalculateAllStats();
 
-        // 5. Re-render UI
+        // 6. Re-render UI
         renderGeneratedResults(lastGeneratedSchedule);
         renderCalendarView(lastGeneratedSchedule.finalSchedule);
+    }
+
+    function handleStudentUnassignment(studentName, sourceDate, sourceActivityId) {
+        if (!lastGeneratedSchedule) return;
+        const { finalSchedule } = lastGeneratedSchedule;
+
+        const sourceDay = finalSchedule.find(d => d.date === sourceDate);
+        if (!sourceDay) return;
+        const sourceSlot = sourceDay.slots.find(s => s.activity.id == sourceActivityId);
+        if (!sourceSlot) return;
+
+        if (confirm(`Deseja remover ${studentName} da atividade ${sourceSlot.activity.name}?`)) {
+            sourceSlot.assigned = sourceSlot.assigned.filter(n => n !== studentName);
+            sourceSlot.capacityString = `${sourceSlot.assigned.length}/${sourceSlot.activity.studentsCount}`;
+            
+            recalculateAllStats();
+            renderGeneratedResults(lastGeneratedSchedule);
+            renderCalendarView(lastGeneratedSchedule.finalSchedule);
+        }
     }
 
     function recalculateAllStats() {

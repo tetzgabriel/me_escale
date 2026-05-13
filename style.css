@@ -753,6 +753,47 @@ button:hover {
     background-color: var(--error-color);
 }
 
+/* Calendar Student Roster */
+.calendar-roster {
+    margin-top: 20px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 2px dashed #ddd;
+    transition: all 0.3s ease;
+}
+
+.calendar-roster.drag-over {
+    background: #fdf2f2;
+    border-color: var(--error-color);
+    box-shadow: 0 0 10px rgba(231, 76, 60, 0.1);
+}
+
+.calendar-roster h4 {
+    font-size: 14px;
+    margin-bottom: 10px;
+    color: var(--secondary-color);
+}
+
+.roster-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.roster-item {
+    padding: 6px 12px;
+    font-size: 12px;
+    background: white;
+    border: 1px solid #ddd;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.roster-item:hover {
+    border-color: var(--accent-color);
+    background: #f0f8ff;
+}
+
 /* Stats Table */
 .stats-table {
     width: 100%;
