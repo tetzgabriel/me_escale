@@ -516,31 +516,6 @@ button:hover {
     align-items: center;
 }
 
-.view-toggle {
-    display: flex;
-    background: #eee;
-    padding: 4px;
-    border-radius: 6px;
-}
-
-.toggle-btn {
-    padding: 6px 15px;
-    font-size: 14px;
-    border: none;
-    background: transparent;
-    color: #666;
-    cursor: pointer;
-    border-radius: 4px;
-    margin-top: 0;
-    width: auto;
-}
-
-.toggle-btn.active {
-    background: white;
-    color: var(--primary-color);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
 /* Calendar View Styles */
 #calendar-output {
     overflow-x: auto;
@@ -731,58 +706,6 @@ button:hover {
     border-bottom: none;
 }
 
-/* Schedule List */
-.schedule-day-group {
-    margin-bottom: 30px;
-}
-
-.schedule-date-header {
-    background-color: var(--accent-color);
-    color: white;
-    padding: 10px 15px;
-    border-radius: 4px;
-    margin-bottom: 15px;
-    font-size: 1.1rem;
-}
-
-.schedule-item {
-    background: white;
-    border: 1px solid #eee;
-    border-left: 4px solid var(--secondary-color);
-    padding: 15px;
-    margin-bottom: 10px;
-    border-radius: 4px;
-}
-
-.schedule-item.understaffed {
-    border-left-color: var(--error-color);
-    background-color: #fff5f5;
-}
-
-.warning-text {
-    color: var(--error-color);
-    font-weight: bold;
-    font-size: 0.8rem;
-    display: block;
-    margin-top: 5px;
-}
-
-.schedule-item h4 {
-    margin-bottom: 5px;
-    color: var(--primary-color);
-}
-
-.schedule-item-details {
-    font-size: 14px;
-    color: #666;
-}
-
-.assigned-students {
-    margin-top: 10px;
-    font-weight: 600;
-    color: var(--accent-color);
-}
-
 .health-alert {
     background-color: #fff3cd;
     color: #856404;
@@ -793,19 +716,6 @@ button:hover {
     text-align: left;
     font-size: 15px;
     line-height: 1.5;
-}
-
-.diagnostic-text {
-    display: block;
-    margin-top: 8px;
-    font-style: italic;
-    font-size: 13px;
-    color: var(--error-color);
-}
-
-.schedule-item.empty {
-    border-left-color: var(--error-color);
-    background-color: #fef9f9;
 }
 
 @media print {

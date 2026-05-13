@@ -680,33 +680,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const generateBtn = document.getElementById('generate-btn');
     const resultsContainer = document.getElementById('results-container');
-    const scheduleOutput = document.getElementById('schedule-output');
     const calendarOutput = document.getElementById('calendar-output');
     const statisticsOutput = document.getElementById('statistics-output');
     const printBtn = document.getElementById('print-btn');
-    const listViewBtn = document.getElementById('list-view-btn');
-    const calendarViewBtn = document.getElementById('calendar-view-btn');
 
     let lastGeneratedSchedule = null;
-
-    if (listViewBtn && calendarViewBtn) {
-        listViewBtn.addEventListener('click', () => {
-            listViewBtn.classList.add('active');
-            calendarViewBtn.classList.remove('active');
-            scheduleOutput.classList.remove('hidden');
-            calendarOutput.classList.add('hidden');
-        });
-
-        calendarViewBtn.addEventListener('click', () => {
-            calendarViewBtn.classList.add('active');
-            listViewBtn.classList.remove('active');
-            calendarOutput.classList.remove('hidden');
-            scheduleOutput.classList.add('hidden');
-            if (lastGeneratedSchedule) {
-                renderCalendarView(lastGeneratedSchedule.finalSchedule);
-            }
-        });
-    }
 
     if (printBtn) {
         printBtn.addEventListener('click', () => {
@@ -731,9 +709,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const scheduleData = generateSchedule();
             lastGeneratedSchedule = scheduleData;
             renderGeneratedResults(scheduleData);
-            if (calendarViewBtn.classList.contains('active')) {
-                renderCalendarView(scheduleData.finalSchedule);
-            }
+            renderCalendarView(scheduleData.finalSchedule);
         });
     }
 
@@ -1367,46 +1343,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         statsHtml += '</tbody></table>';
         statisticsOutput.innerHTML = statsHtml;
-
-        // 2. Render Schedule
-        let scheduleHtml = '';
-        const dayTranslations = {
-            'Monday': 'Segunda-feira', 'Tuesday': 'Terça-feira', 'Wednesday': 'Quarta-feira',
-            'Thursday': 'Quinta-feira', 'Friday': 'Sexta-feira', 'Saturday': 'Sábado', 'Sunday': 'Domingo'
-        };
-
-        finalSchedule.forEach(day => {
-            scheduleHtml += `
-                <div class="schedule-day-group">
-                    <div class="schedule-date-header">
-                        ${day.date} - ${dayTranslations[day.dayName] || day.dayName}
-                    </div>
-            `;
-
-            day.slots.forEach(slot => {
-                const isEmpty = slot.assigned.length === 0;
-                const diagHtml = slot.diagnostics ? `<span class="diagnostic-text">⚠️ ${slot.diagnostics}</span>` : '';
-                
-                scheduleHtml += `
-                    <div class="schedule-item ${isEmpty ? 'empty' : ''}">
-                        <h4>${slot.activity.name} <span class="type-badge">${slot.activity.type || 'PLANTÃO'}</span></h4>
-                        <div class="schedule-item-details">
-                            <span>🕒 ${slot.activity.startTime} - ${slot.activity.endTime}</span> | 
-                            <span>📍 ${slot.activity.location}</span>
-                        </div>
-                        <div class="assigned-students">
-                            Atribuídos: ${slot.assigned.length > 0 ? slot.assigned.join(', ') : 'Nenhum'} 
-                            (Mín: ${slot.activity.minStudents || 1} | ${slot.capacityString})
-                        </div>
-                        ${diagHtml}
-                    </div>
-                `;
-            });
-
-            scheduleHtml += '</div>';
-        });
-
-        scheduleOutput.innerHTML = scheduleHtml;
         
         // Scroll to results
         resultsContainer.scrollIntoView({ behavior: 'smooth' });
@@ -1430,45 +1366,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const dateStr = new Date().toISOString().split('T')[0];
         a.href = url;
         a.download = `backup_escalas_med_${dateStr}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    });
-
-    // CSV Export
-    const csvExportBtn = document.getElementById('csv-export-btn');
-    csvExportBtn.addEventListener('click', () => {
-        if (!lastGeneratedSchedule) return;
-
-        let csvContent = "Data,Dia,Atividade,Tipo,Horário,Local,Alunos Atribuídos\n";
-        
-        const dayTranslations = {
-            'Monday': 'Segunda-feira', 'Tuesday': 'Terça-feira', 'Wednesday': 'Quarta-feira',
-            'Thursday': 'Quinta-feira', 'Friday': 'Sexta-feira', 'Saturday': 'Sábado', 'Sunday': 'Domingo'
-        };
-
-        lastGeneratedSchedule.finalSchedule.forEach(day => {
-            day.slots.forEach(slot => {
-                const assigned = slot.assigned.join('; ');
-                const row = [
-                    day.date,
-                    dayTranslations[day.dayName] || day.dayName,
-                    `"${slot.activity.name}"`,
-                    `"${slot.activity.type || 'PLANTÃO'}"`,
-                    `"${slot.activity.startTime} - ${slot.activity.endTime}"`,
-                    `"${slot.activity.location}"`,
-                    `"${assigned}"`
-                ].join(',');
-                csvContent += row + "\n";
-            });
-        });
-
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `escala_plantao_med_${new Date().toISOString().split('T')[0]}.csv`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
