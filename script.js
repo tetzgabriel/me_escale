@@ -916,6 +916,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function normalizeActivityName(name) {
+        return name.toUpperCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "") // Remove accents
+            .replace(/[^A-Z0-9 ]/g, "")      // Remove special chars
+            .trim();
+    }
+
     function generateSchedule() {
         const startDate = new Date(rotationConfig.startDate + 'T00:00:00');
         const endDate = new Date(rotationConfig.endDate + 'T00:00:00');
@@ -930,6 +938,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // --- Global Health Check ---
         let totalMinimumActivityHours = 0;
         const allPotentialSlots = [];
+        const uniqueActivityNames = new Set();
 
         dateArray.forEach(date => {
             const dateStr = date.toISOString().split('T')[0];
@@ -940,12 +949,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     allPotentialSlots.push({
                         dateStr,
                         dayName,
-                        activity: { ...a }
+                        activity: { ...a, normalizedName: normalizeActivityName(a.name) }
                     });
+                    uniqueActivityNames.add(normalizeActivityName(a.name));
                 }
             });
         });
 
+        const mandatoryActivities = Array.from(uniqueActivityNames);
         const avgHoursRequired = totalMinimumActivityHours / students.length;
         let healthWarning = null;
         if (avgHoursRequired > rotationConfig.requiredHours) {
@@ -959,8 +970,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const ATTEMPTS = 100;
         for (let i = 0; i < ATTEMPTS; i++) {
-            const currentAttempt = runSingleAttempt(allPotentialSlots);
-            const currentScore = calculateScore(currentAttempt);
+            const currentAttempt = runSingleAttempt(allPotentialSlots, mandatoryActivities);
+            const currentScore = calculateScore(currentAttempt, mandatoryActivities);
 
             if (currentScore < bestScore) {
                 bestScore = currentScore;
@@ -972,12 +983,14 @@ document.addEventListener('DOMContentLoaded', () => {
         return { ...bestResult, healthWarning };
     }
 
-    function runSingleAttempt(allPotentialSlots) {
+    function runSingleAttempt(allPotentialSlots, mandatoryActivities) {
         const studentStats = students.map(s => ({
             id: s.id,
             name: s.name,
             totalHours: 0,
-            requiredHours: rotationConfig.requiredHours
+            requiredHours: rotationConfig.requiredHours,
+            coveredActivities: new Set(),
+            hasPlantao: false
         }));
 
         // Flatten all instances into individual slots
@@ -1010,10 +1023,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 );
                 
                 if (eligible.length > 0) {
-                    // Pick student who needs hours most OR has fewest hours
+                    // Pick student who NEEDS this activity name most OR needs a Plantão
                     eligible.sort((a, b) => {
                         const statsA = studentStats.find(st => st.id === a.id);
                         const statsB = studentStats.find(st => st.id === b.id);
+                        
+                        const needsActA = !statsA.coveredActivities.has(slot.activity.normalizedName);
+                        const needsActB = !statsB.coveredActivities.has(slot.activity.normalizedName);
+                        const needsPlantaoA = slot.activity.type === 'PLANTÃO' && !statsA.hasPlantao;
+                        const needsPlantaoB = slot.activity.type === 'PLANTÃO' && !statsB.hasPlantao;
+
+                        // Priority 1: Mandatory Activity Coverage
+                        if (needsActA !== needsActB) return needsActA ? -1 : 1;
+                        
+                        // Priority 2: Mandatory Plantao Coverage
+                        if (needsPlantaoA !== needsPlantaoB) return needsPlantaoA ? -1 : 1;
+
+                        // Priority 3: Hours Balance
                         return statsA.totalHours - statsB.totalHours || (Math.random() - 0.5);
                     });
 
@@ -1022,6 +1048,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     slot.assignedIds.push(chosen.id);
                     stats.totalHours += slot.activity.hoursCount;
+                    stats.coveredActivities.add(slot.activity.normalizedName);
+                    if (slot.activity.type === 'PLANTÃO') stats.hasPlantao = true;
+
                     dailyAssignments[dateStr].push({ studentId: chosen.id, startTime: slot.activity.startTime, endTime: slot.activity.endTime });
                 } else {
                     // Diagnostic tracking for failures
@@ -1053,28 +1082,43 @@ document.addEventListener('DOMContentLoaded', () => {
                     isStudentEligible(s, dateStr, slot.activity, dailyAssignments[dateStr])
                 );
 
-                // Only take students who still need hours
-                const needingHours = eligible.filter(s => {
+                // Only take students who still need hours OR still need this activity/plantao for coverage
+                const needingHoursOrCoverage = eligible.filter(s => {
                     const stats = studentStats.find(st => st.id === s.id);
-                    return stats.totalHours < stats.requiredHours;
+                    const needsAct = !stats.coveredActivities.has(slot.activity.normalizedName);
+                    const needsPlantao = slot.activity.type === 'PLANTÃO' && !stats.hasPlantao;
+                    return stats.totalHours < stats.requiredHours || needsAct || needsPlantao;
                 });
 
-                if (needingHours.length === 0) break;
+                if (needingHoursOrCoverage.length === 0) break;
 
-                // Prioritize Preferences
-                needingHours.sort((a, b) => {
+                // Prioritize Coverage then Preferences
+                needingHoursOrCoverage.sort((a, b) => {
                     const statsA = studentStats.find(st => st.id === a.id);
                     const statsB = studentStats.find(st => st.id === b.id);
+                    
+                    const needsActA = !statsA.coveredActivities.has(slot.activity.normalizedName);
+                    const needsActB = !statsB.coveredActivities.has(slot.activity.normalizedName);
+                    const needsPlantaoA = slot.activity.type === 'PLANTÃO' && !statsA.hasPlantao;
+                    const needsPlantaoB = slot.activity.type === 'PLANTÃO' && !statsB.hasPlantao;
+
+                    if (needsActA !== needsActB) return needsActA ? -1 : 1;
+                    if (needsPlantaoA !== needsPlantaoB) return needsPlantaoA ? -1 : 1;
+
                     const prefA = hasPreference(a, dateStr, slot.activity);
                     const prefB = hasPreference(b, dateStr, slot.activity);
                     if (prefA !== prefB) return prefA ? -1 : 1;
+
                     return statsA.totalHours - statsB.totalHours || (Math.random() - 0.5);
                 });
 
-                const chosen = needingHours[0];
+                const chosen = needingHoursOrCoverage[0];
                 const stats = studentStats.find(st => st.id === chosen.id);
                 slot.assignedIds.push(chosen.id);
                 stats.totalHours += slot.activity.hoursCount;
+                stats.coveredActivities.add(slot.activity.normalizedName);
+                if (slot.activity.type === 'PLANTÃO') stats.hasPlantao = true;
+
                 dailyAssignments[dateStr].push({ studentId: chosen.id, startTime: slot.activity.startTime, endTime: slot.activity.endTime });
             }
         });
@@ -1137,9 +1181,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function calculateScore({ finalSchedule, studentStats }) {
+    function calculateScore({ finalSchedule, studentStats }, mandatoryActivities) {
         let emptyCount = 0;
         let understaffedPenalty = 0;
+        let coveragePenalty = 0;
+
         finalSchedule.forEach(day => {
             day.slots.forEach(slot => {
                 const assigned = slot.assigned.length;
@@ -1153,13 +1199,26 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
 
+        // Calculate student-specific coverage penalties
+        studentStats.forEach(stat => {
+            // Penalty for missing mandatory activities
+            const missingCount = mandatoryActivities.length - stat.coveredActivities.size;
+            coveragePenalty += (missingCount * 10);
+
+            // Penalty for missing Plantao
+            if (!stat.hasPlantao) coveragePenalty += 100;
+        });
+
         // Calculate variance in student hours (lower is more balanced)
         const hours = studentStats.map(s => s.totalHours);
         const avg = hours.reduce((a, b) => a + b, 0) / hours.length;
         const variance = hours.reduce((a, b) => a + Math.pow(b - avg, 2), 0) / hours.length;
 
-        // Score: Primary penalty for empty slots, secondary for understaffed, tertiary for imbalance
-        return (emptyCount * 1000000) + (understaffedPenalty * 100000) + variance;
+        // Score: Higher weights for critical requirements
+        return (emptyCount * 1000000) + 
+               (understaffedPenalty * 100000) + 
+               (coveragePenalty * 1000) + 
+               variance;
     }
 
     function checkOverlap(start1, end1, start2, end2) {
