@@ -44,9 +44,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const savedActivities = localStorage.getItem('med_rotations_activities');
     if (savedActivities) {
         activities = JSON.parse(savedActivities);
-        // Ensure all activities have a type (for backward compatibility)
+        // Ensure all activities have a type (for backward compatibility) and trim names
         activities.forEach(a => {
             if (!a.type) a.type = 'PLANTÃO';
+            if (a.name) a.name = a.name.trim();
         });
     }
 
@@ -744,7 +745,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderCalendarView(finalSchedule) {
-        if (!rotationConfig.startDate || !rotationConfig.endDate) return;
+        if (!rotationConfig.startDate || !rotationConfig.endDate || !Array.isArray(finalSchedule)) return;
         
         calendarOutput.innerHTML = '';
         
@@ -807,6 +808,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     const eventsCont = document.createElement('div');
                     eventsCont.className = 'calendar-events';
                     dayData.slots.forEach(slot => {
+                        if (!slot.assigned) slot.assigned = [];
+                        
                         const eventEl = document.createElement('div');
                         eventEl.className = 'calendar-event';
                         if (slot.assigned.length === 0) eventEl.classList.add('empty-slot');
@@ -956,25 +959,33 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function recalculateAllStats() {
-        if (!lastGeneratedSchedule) return;
+        if (!lastGeneratedSchedule || !lastGeneratedSchedule.finalSchedule || !lastGeneratedSchedule.studentStats) return;
 
         const { finalSchedule, studentStats } = lastGeneratedSchedule;
 
-        // Reset all totals
+        // Reset all totals and ensure coveredActivities is a Set
         studentStats.forEach(stat => {
             stat.totalHours = 0;
-            stat.coveredActivities = new Set();
             stat.hasPlantao = false;
+            if (!(stat.coveredActivities instanceof Set)) {
+                stat.coveredActivities = new Set();
+            } else {
+                stat.coveredActivities.clear();
+            }
         });
 
         // Sum up from schedule
         finalSchedule.forEach(day => {
+            if (!day || !day.slots) return;
             day.slots.forEach(slot => {
+                if (!slot.assigned || !slot.activity) return;
                 slot.assigned.forEach(name => {
                     const stat = studentStats.find(s => s.name === name);
                     if (stat) {
-                        stat.totalHours += slot.activity.hoursCount;
-                        stat.coveredActivities.add(normalizeActivityName(slot.activity.name));
+                        stat.totalHours += (slot.activity.hoursCount || 0);
+                        if (slot.activity.name) {
+                            stat.coveredActivities.add(normalizeActivityName(slot.activity.name));
+                        }
                         if (isPlantao(slot.activity.type)) {
                             stat.hasPlantao = true;
                         }
@@ -993,11 +1004,34 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function normalizeActivityName(name) {
+        if (!name) return "";
         return name.toUpperCase()
             .normalize("NFD")
             .replace(/[\u0300-\u036f]/g, "") // Remove accents
             .replace(/[^A-Z0-9 ]/g, "")      // Remove special chars
             .trim();
+    }
+
+    function calculateMandatoryActivities(acts, config) {
+        if (!config.startDate || !config.endDate) return [];
+        
+        const start = new Date(config.startDate + 'T00:00:00');
+        const end = new Date(config.endDate + 'T00:00:00');
+        const uniqueNames = new Set();
+        
+        let current = new Date(start);
+        while (current <= end) {
+            const dateStr = current.toISOString().split('T')[0];
+            const dayName = current.toLocaleDateString('en-US', { weekday: 'long' });
+            
+            acts.forEach(a => {
+                if (a.day === dayName && (!a.exceptions || !a.exceptions.includes(dateStr))) {
+                    uniqueNames.add(normalizeActivityName(a.name));
+                }
+            });
+            current.setDate(current.getDate() + 1);
+        }
+        return Array.from(uniqueNames);
     }
 
     function generateSchedule() {
@@ -1027,12 +1061,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         dayName,
                         activity: { ...a, normalizedName: normalizeActivityName(a.name) }
                     });
-                    uniqueActivityNames.add(normalizeActivityName(a.name));
                 }
             });
         });
 
-        const mandatoryActivities = Array.from(uniqueActivityNames);
+        const mandatoryActivities = calculateMandatoryActivities(activities, rotationConfig);
         const avgHoursRequired = totalMinimumActivityHours / students.length;
         let healthWarning = null;
         if (avgHoursRequired > rotationConfig.requiredHours) {
@@ -1395,7 +1428,16 @@ document.addEventListener('DOMContentLoaded', () => {
         return (start1 < end2 && start2 < end1);
     }
 
-    function renderGeneratedResults({ finalSchedule, studentStats, healthWarning, mandatoryActivities }) {
+    function renderGeneratedResults(scheduleData) {
+        if (!scheduleData) return;
+        
+        const { 
+            finalSchedule = [], 
+            studentStats = [], 
+            healthWarning = null, 
+            mandatoryActivities = [] 
+        } = scheduleData;
+
         const healthWarningEl = document.getElementById('health-warning');
         if (healthWarning) {
             healthWarningEl.innerHTML = healthWarning;
@@ -1455,12 +1497,29 @@ document.addEventListener('DOMContentLoaded', () => {
     // Export Data
     const exportBtn = document.getElementById('export-btn');
     exportBtn.addEventListener('click', () => {
+        // Deep clone lastGeneratedSchedule to avoid modifying the live state
+        let exportedSchedule = null;
+        if (lastGeneratedSchedule) {
+            exportedSchedule = JSON.parse(JSON.stringify(lastGeneratedSchedule));
+            // Convert coveredActivities Sets to Arrays for JSON serialization
+            if (exportedSchedule.studentStats) {
+                exportedSchedule.studentStats.forEach(stat => {
+                    if (lastGeneratedSchedule.studentStats) {
+                        const originalStat = lastGeneratedSchedule.studentStats.find(s => s.id === stat.id);
+                        if (originalStat && originalStat.coveredActivities instanceof Set) {
+                            stat.coveredActivities = Array.from(originalStat.coveredActivities);
+                        }
+                    }
+                });
+            }
+        }
+
         const dataToExport = {
             version: 1,
             config: rotationConfig,
             activities: activities,
             students: students,
-            lastGeneratedSchedule: lastGeneratedSchedule
+            lastGeneratedSchedule: exportedSchedule
         };
         
         const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'application/json' });
@@ -1501,10 +1560,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (confirm('Importar este arquivo substituirá seus dados atuais. Continuar?')) {
                     // Update state
                     activities = importedData.activities;
-                    // Ensure all activities have a type (for backward compatibility)
+                    // Ensure all activities have a type (for backward compatibility) and trim names
                     activities.forEach(a => {
                         if (!a.type) a.type = 'PLANTÃO';
+                        if (a.name) a.name = a.name.trim();
                     });
+                    
+                    // IMPORTANT: Update rotationConfig IMMEDIATELY so it's available for calculations
                     rotationConfig = importedData.config;
                     students = importedData.students || [];
                     lastGeneratedSchedule = importedData.lastGeneratedSchedule || null;
@@ -1528,6 +1590,33 @@ document.addEventListener('DOMContentLoaded', () => {
                     renderStudents();
 
                     if (lastGeneratedSchedule) {
+                        // Trim names inside the schedule data for consistency
+                        if (lastGeneratedSchedule.finalSchedule) {
+                            lastGeneratedSchedule.finalSchedule.forEach(day => {
+                                if (day.slots) {
+                                    day.slots.forEach(slot => {
+                                        if (slot.activity && slot.activity.name) {
+                                            slot.activity.name = slot.activity.name.trim();
+                                        }
+                                    });
+                                }
+                            });
+                        }
+
+                        // Ensure mandatoryActivities is recalculated for consistency
+                        lastGeneratedSchedule.mandatoryActivities = calculateMandatoryActivities(activities, rotationConfig);
+                        
+                        // Re-initialize studentStats from the imported students list to ensure they are fresh and clean
+                        lastGeneratedSchedule.studentStats = students.map(s => ({
+                            id: s.id,
+                            name: s.name,
+                            affinityGroup: s.affinityGroup,
+                            totalHours: 0,
+                            requiredHours: rotationConfig.requiredHours || 0,
+                            coveredActivities: new Set(),
+                            hasPlantao: false
+                        }));
+
                         recalculateAllStats();
                         renderGeneratedResults(lastGeneratedSchedule);
                         renderCalendarView(lastGeneratedSchedule.finalSchedule);
