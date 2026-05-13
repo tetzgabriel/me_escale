@@ -915,6 +915,21 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        // 2.5 Check back-to-back rule
+        if (isPlantao(targetSlot.activity.type)) {
+            const hasAdjacent = (offset) => {
+                const adjDate = getAdjacentDateStr(targetDate, offset);
+                const adjDay = finalSchedule.find(d => d.date === adjDate);
+                if (!adjDay) return false;
+                return adjDay.slots.some(s => isPlantao(s.activity.type) && s.assigned.includes(studentName));
+            };
+            if (hasAdjacent(-1) || hasAdjacent(1)) {
+                if (!confirm(`${studentName} já possui um PLANTÃO no dia anterior ou posterior. Deseja forçar esta atribuição?`)) {
+                    return;
+                }
+            }
+        }
+
         // 3. Perform move
         sourceSlot.assigned = sourceSlot.assigned.filter(n => n !== studentName);
         sourceSlot.capacityString = `${sourceSlot.assigned.length}/${sourceSlot.activity.studentsCount}`;
@@ -1056,7 +1071,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 1. Calculate Global Scarcity
         allSlots.forEach(slot => {
-            slot._scarcity = students.filter(student => isStudentEligible(student, slot.dateStr, slot.activity, [])).length;
+            slot._scarcity = students.filter(student => isStudentEligible(student, slot.dateStr, slot.activity, {})).length;
         });
 
         // 2. Global Phase 1: Minimum Staffing (Guarantee MINIMUM people per activity)
@@ -1073,7 +1088,7 @@ document.addEventListener('DOMContentLoaded', () => {
             while (slot.assignedIds.length < targetMin) {
                 const eligible = students.filter(s => 
                     !slot.assignedIds.includes(s.id) && 
-                    isStudentEligible(s, dateStr, slot.activity, dailyAssignments[dateStr])
+                    isStudentEligible(s, dateStr, slot.activity, dailyAssignments)
                 );
                 
                 if (eligible.length > 0) {
@@ -1114,18 +1129,25 @@ document.addEventListener('DOMContentLoaded', () => {
                     stats.coveredActivities.add(slot.activity.normalizedName);
                     if (isPlantao(slot.activity.type)) stats.hasPlantao = true;
 
-                    dailyAssignments[dateStr].push({ studentId: chosen.id, startTime: slot.activity.startTime, endTime: slot.activity.endTime });
+                    dailyAssignments[dateStr].push({ 
+                        studentId: chosen.id, 
+                        startTime: slot.activity.startTime, 
+                        endTime: slot.activity.endTime,
+                        type: slot.activity.type
+                    });
                 } else {
                     // Diagnostic tracking for failures
                     let rejectedException = 0;
                     let rejectedOverlap = 0;
+                    let rejectedBackToBack = 0;
                     students.forEach(s => {
                         if (hasException(s, dateStr, slot.activity)) rejectedException++;
                         else if (hasOverlap(s, dateStr, slot.activity, dailyAssignments[dateStr])) rejectedOverlap++;
+                        else if (isPlantao(slot.activity.type) && hasPlantaoOnAdjacentDay(s.id, dateStr, dailyAssignments)) rejectedBackToBack++;
                     });
                     
                     if (slot.assignedIds.length === 0) {
-                        slot.diagnostics = `Não foi possível preencher. ${rejectedException} exceções, ${rejectedOverlap} sobreposições.`;
+                        slot.diagnostics = `Não foi possível preencher. ${rejectedException} exceções, ${rejectedOverlap} sobreposições, ${rejectedBackToBack} plantões seguidos.`;
                     } else {
                         slot.diagnostics = `Mínimo de ${targetMin} não atingido (atribuídos: ${slot.assignedIds.length}).`;
                     }
@@ -1139,7 +1161,7 @@ document.addEventListener('DOMContentLoaded', () => {
             while (slot.assignedIds.length < limit) {
                 const eligible = students.filter(s => 
                     !slot.assignedIds.includes(s.id) && 
-                    isStudentEligible(s, dateStr, slot.activity, dailyAssignments[dateStr])
+                    isStudentEligible(s, dateStr, slot.activity, dailyAssignments)
                 );
 
                 // Only take students who still need hours OR still need this activity/plantao for coverage
@@ -1187,7 +1209,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 stats.coveredActivities.add(slot.activity.normalizedName);
                 if (isPlantao(slot.activity.type)) stats.hasPlantao = true;
 
-                dailyAssignments[dateStr].push({ studentId: chosen.id, startTime: slot.activity.startTime, endTime: slot.activity.endTime });
+                dailyAssignments[dateStr].push({ 
+                    studentId: chosen.id, 
+                    startTime: slot.activity.startTime, 
+                    endTime: slot.activity.endTime,
+                    type: slot.activity.type
+                });
             }
         };
 
@@ -1230,9 +1257,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Helper Logic for Refactored Algorithm ---
 
-    function isStudentEligible(student, dateStr, activity, dailyAssignments) {
+    function getAdjacentDateStr(dateStr, offset) {
+        const d = new Date(dateStr + 'T00:00:00');
+        d.setDate(d.getDate() + offset);
+        return d.toISOString().split('T')[0];
+    }
+
+    function hasPlantaoOnAdjacentDay(studentId, dateStr, allDailyAssignments) {
+        if (!allDailyAssignments) return false;
+
+        const checkDay = (offset) => {
+            const adjDate = getAdjacentDateStr(dateStr, offset);
+            const adjAssignments = allDailyAssignments[adjDate];
+            if (!adjAssignments) return false;
+            return adjAssignments.some(as => as.studentId === studentId && isPlantao(as.type));
+        };
+
+        return checkDay(-1) || checkDay(1);
+    }
+
+    function isStudentEligible(student, dateStr, activity, allDailyAssignments) {
         if (hasException(student, dateStr, activity)) return false;
-        if (hasOverlap(student, dateStr, activity, dailyAssignments)) return false;
+        
+        // Same day overlap check
+        const sameDayAssignments = allDailyAssignments[dateStr] || [];
+        if (hasOverlap(student, dateStr, activity, sameDayAssignments)) return false;
+
+        // Back-to-back plantão check: If this is a plantão, student can't have one on adjacent days
+        if (isPlantao(activity.type)) {
+            if (hasPlantaoOnAdjacentDay(student.id, dateStr, allDailyAssignments)) return false;
+        }
+
         return true;
     }
 
