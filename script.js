@@ -768,12 +768,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 grid.appendChild(hDiv);
             });
 
+            // --- Collect all days for this month ---
+            const allMonthCells = [];
+            
             // Start Padding
             const startPadding = currentMonth.getDay();
             for (let i = 0; i < startPadding; i++) {
                 const pad = document.createElement('div');
                 pad.className = 'calendar-day other-month';
-                grid.appendChild(pad);
+                allMonthCells.push({ element: pad, hasActivity: false });
             }
 
             // Days of the month
@@ -791,7 +794,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 dayDiv.innerHTML = `<div class="calendar-day-number">${i}</div>`;
                 
                 const dayData = finalSchedule.find(d => d.date === dateStr);
+                let dayHasActivity = false;
+
                 if (dayData) {
+                    dayHasActivity = true;
                     const eventsCont = document.createElement('div');
                     eventsCont.className = 'calendar-events';
                     dayData.slots.forEach(slot => {
@@ -856,20 +862,32 @@ document.addEventListener('DOMContentLoaded', () => {
                     dayDiv.appendChild(eventsCont);
                 }
 
-                grid.appendChild(dayDiv);
+                allMonthCells.push({ element: dayDiv, hasActivity: dayHasActivity });
             }
 
             // End Padding to fill the week
-            const totalCells = startPadding + lastDay;
-            const endPadding = (7 - (totalCells % 7)) % 7;
+            const currentTotal = allMonthCells.length;
+            const endPadding = (7 - (currentTotal % 7)) % 7;
             for (let i = 0; i < endPadding; i++) {
                 const pad = document.createElement('div');
                 pad.className = 'calendar-day other-month';
-                grid.appendChild(pad);
+                allMonthCells.push({ element: pad, hasActivity: false });
             }
 
-            monthDiv.appendChild(grid);
-            calendarOutput.appendChild(monthDiv);
+            // --- Chunk into weeks and render ONLY if the week has activities ---
+            for (let i = 0; i < allMonthCells.length; i += 7) {
+                const weekChunk = allMonthCells.slice(i, i + 7);
+                const weekHasActivity = weekChunk.some(cell => cell.hasActivity);
+                
+                if (weekHasActivity) {
+                    weekChunk.forEach(cell => grid.appendChild(cell.element));
+                }
+            }
+
+            if (grid.children.length > 7) { // Only add month if it has at least one week with activities
+                monthDiv.appendChild(grid);
+                calendarOutput.appendChild(monthDiv);
+            }
 
             // Move to next month
             currentMonth.setMonth(currentMonth.getMonth() + 1);
