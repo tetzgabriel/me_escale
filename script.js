@@ -44,6 +44,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const savedActivities = localStorage.getItem('med_rotations_activities');
     if (savedActivities) {
         activities = JSON.parse(savedActivities);
+        // Ensure all activities have a type (for backward compatibility)
+        activities.forEach(a => {
+            if (!a.type) a.type = 'PLANTÃO';
+        });
     }
 
     const savedStudents = localStorage.getItem('med_rotations_students');
@@ -901,7 +905,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const { finalSchedule, studentStats } = lastGeneratedSchedule;
 
         // Reset all totals
-        studentStats.forEach(stat => stat.totalHours = 0);
+        studentStats.forEach(stat => {
+            stat.totalHours = 0;
+            stat.coveredActivities = new Set();
+            stat.hasPlantao = false;
+        });
 
         // Sum up from schedule
         finalSchedule.forEach(day => {
@@ -910,10 +918,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     const stat = studentStats.find(s => s.name === name);
                     if (stat) {
                         stat.totalHours += slot.activity.hoursCount;
+                        stat.coveredActivities.add(normalizeActivityName(slot.activity.name));
+                        if (isPlantao(slot.activity.type)) {
+                            stat.hasPlantao = true;
+                        }
                     }
                 });
             });
         });
+    }
+
+    function isPlantao(type) {
+        if (!type) return true; // Default to true for missing types (backward compatibility)
+        return type.toUpperCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .trim() === 'PLANTAO';
     }
 
     function normalizeActivityName(name) {
@@ -980,7 +1000,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        return { ...bestResult, healthWarning };
+        return { ...bestResult, healthWarning, mandatoryActivities };
     }
 
     function runSingleAttempt(allPotentialSlots, mandatoryActivities) {
@@ -1030,8 +1050,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         
                         const needsActA = !statsA.coveredActivities.has(slot.activity.normalizedName);
                         const needsActB = !statsB.coveredActivities.has(slot.activity.normalizedName);
-                        const needsPlantaoA = slot.activity.type === 'PLANTÃO' && !statsA.hasPlantao;
-                        const needsPlantaoB = slot.activity.type === 'PLANTÃO' && !statsB.hasPlantao;
+                        const needsPlantaoA = isPlantao(slot.activity.type) && !statsA.hasPlantao;
+                        const needsPlantaoB = isPlantao(slot.activity.type) && !statsB.hasPlantao;
 
                         // Priority 1: Mandatory Activity Coverage
                         if (needsActA !== needsActB) return needsActA ? -1 : 1;
@@ -1049,7 +1069,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     slot.assignedIds.push(chosen.id);
                     stats.totalHours += slot.activity.hoursCount;
                     stats.coveredActivities.add(slot.activity.normalizedName);
-                    if (slot.activity.type === 'PLANTÃO') stats.hasPlantao = true;
+                    if (isPlantao(slot.activity.type)) stats.hasPlantao = true;
 
                     dailyAssignments[dateStr].push({ studentId: chosen.id, startTime: slot.activity.startTime, endTime: slot.activity.endTime });
                 } else {
@@ -1086,7 +1106,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const needingHoursOrCoverage = eligible.filter(s => {
                     const stats = studentStats.find(st => st.id === s.id);
                     const needsAct = !stats.coveredActivities.has(slot.activity.normalizedName);
-                    const needsPlantao = slot.activity.type === 'PLANTÃO' && !stats.hasPlantao;
+                    const needsPlantao = isPlantao(slot.activity.type) && !stats.hasPlantao;
                     return stats.totalHours < stats.requiredHours || needsAct || needsPlantao;
                 });
 
@@ -1099,8 +1119,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     const needsActA = !statsA.coveredActivities.has(slot.activity.normalizedName);
                     const needsActB = !statsB.coveredActivities.has(slot.activity.normalizedName);
-                    const needsPlantaoA = slot.activity.type === 'PLANTÃO' && !statsA.hasPlantao;
-                    const needsPlantaoB = slot.activity.type === 'PLANTÃO' && !statsB.hasPlantao;
+                    const needsPlantaoA = isPlantao(slot.activity.type) && !statsA.hasPlantao;
+                    const needsPlantaoB = isPlantao(slot.activity.type) && !statsB.hasPlantao;
 
                     if (needsActA !== needsActB) return needsActA ? -1 : 1;
                     if (needsPlantaoA !== needsPlantaoB) return needsPlantaoA ? -1 : 1;
@@ -1117,7 +1137,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 slot.assignedIds.push(chosen.id);
                 stats.totalHours += slot.activity.hoursCount;
                 stats.coveredActivities.add(slot.activity.normalizedName);
-                if (slot.activity.type === 'PLANTÃO') stats.hasPlantao = true;
+                if (isPlantao(slot.activity.type)) stats.hasPlantao = true;
 
                 dailyAssignments[dateStr].push({ studentId: chosen.id, startTime: slot.activity.startTime, endTime: slot.activity.endTime });
             }
@@ -1225,7 +1245,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return (start1 < end2 && start2 < end1);
     }
 
-    function renderGeneratedResults({ finalSchedule, studentStats, healthWarning }) {
+    function renderGeneratedResults({ finalSchedule, studentStats, healthWarning, mandatoryActivities }) {
         const healthWarningEl = document.getElementById('health-warning');
         if (healthWarning) {
             healthWarningEl.innerHTML = healthWarning;
@@ -1238,13 +1258,14 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // 1. Render Stats
         let statsHtml = `
-            <h3>Equilíbrio de Carga Horária dos Alunos</h3>
+            <h3>Equilíbrio de Carga Horária e Requisitos</h3>
             <table class="stats-table">
                 <thead>
                     <tr>
                         <th>Nome do Aluno</th>
-                        <th>Horas Atribuídas</th>
-                        <th>Meta</th>
+                        <th>Horas</th>
+                        <th>Plantão</th>
+                        <th>Atividades Cobertas</th>
                         <th>Status</th>
                     </tr>
                 </thead>
@@ -1253,13 +1274,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
         studentStats.forEach(stat => {
             const diff = stat.requiredHours - stat.totalHours;
-            const status = diff <= 0 ? '✅ Atingida' : '⌛ ' + diff.toFixed(1) + 'h restantes';
+            const hourStatus = diff <= 0 ? '✅' : '⌛';
+            const plantaoStatus = stat.hasPlantao ? '✅' : '❌';
+            
+            const coveredCount = stat.coveredActivities.size;
+            const totalMandatory = mandatoryActivities.length;
+            const coverageStatus = coveredCount === totalMandatory ? '✅' : `⚠️ ${coveredCount}/${totalMandatory}`;
+
+            // Create a tooltip for missing activities
+            const missing = mandatoryActivities.filter(m => !stat.coveredActivities.has(m));
+            const coverageTitle = missing.length > 0 ? `Faltando: ${missing.join(', ')}` : 'Todas cobertas';
+
             statsHtml += `
                 <tr>
                     <td>${stat.name}</td>
-                    <td>${stat.totalHours.toFixed(1)}h</td>
-                    <td>${stat.requiredHours}h</td>
-                    <td>${status}</td>
+                    <td>${hourStatus} ${stat.totalHours.toFixed(1)}h / ${stat.requiredHours}h</td>
+                    <td style="text-align: center">${plantaoStatus}</td>
+                    <td title="${coverageTitle}" style="cursor: help">${coverageStatus}</td>
+                    <td>${diff <= 0 && stat.hasPlantao && coveredCount === totalMandatory ? '✅ Completo' : '⌛ Pendente'}</td>
                 </tr>
             `;
         });
@@ -1398,6 +1430,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (confirm('Importar este arquivo substituirá seus dados atuais. Continuar?')) {
                     // Update state
                     activities = importedData.activities;
+                    // Ensure all activities have a type (for backward compatibility)
+                    activities.forEach(a => {
+                        if (!a.type) a.type = 'PLANTÃO';
+                    });
                     rotationConfig = importedData.config;
                     students = importedData.students || [];
                     lastGeneratedSchedule = importedData.lastGeneratedSchedule || null;
@@ -1420,6 +1456,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     renderStudents();
 
                     if (lastGeneratedSchedule) {
+                        recalculateAllStats();
                         renderGeneratedResults(lastGeneratedSchedule);
                         if (calendarViewBtn.classList.contains('active')) {
                             renderCalendarView(lastGeneratedSchedule.finalSchedule);
