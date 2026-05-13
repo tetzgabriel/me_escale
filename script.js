@@ -53,11 +53,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const savedStudents = localStorage.getItem('med_rotations_students');
     if (savedStudents) {
         students = JSON.parse(savedStudents);
-        // Ensure all students have a color (for backward compatibility)
+        // Ensure all students have a color and affinity group
         let updated = false;
         students.forEach(s => {
             if (!s.color) {
                 s.color = getRandomColor();
+                updated = true;
+            }
+            if (!s.affinityGroup) {
+                s.affinityGroup = 'A';
                 updated = true;
             }
         });
@@ -238,6 +242,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const newStudent = {
             id: Date.now(),
             name: document.getElementById('student-name').value,
+            affinityGroup: document.getElementById('student-affinity').value || 'A',
             exceptions: [...currentStudentExceptions],
             preferredDates: [...currentStudentPreferred],
             color: getRandomColor()
@@ -299,7 +304,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="student-info-row">
                     <div class="student-color-dot" style="background-color: ${student.color}"></div>
                     <div class="activity-info">
-                        <h3>${student.name}</h3>
+                        <h3>${student.name} ${student.affinityGroup ? `<span class="affinity-badge">👥 ${student.affinityGroup}</span>` : ''}</h3>
                         ${exceptionsHtml}
                         ${preferredHtml}
                     </div>
@@ -342,6 +347,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="form-group">
                     <label>Nome do Aluno</label>
                     <input type="text" id="edit-student-name" value="${student.name}" required>
+                </div>
+                <div class="form-group">
+                    <label>Grupo de Afinidade</label>
+                    <select id="edit-student-affinity" required>
+                        <option value="A" ${student.affinityGroup === 'A' || !student.affinityGroup ? 'selected' : ''}>A</option>
+                        <option value="B" ${student.affinityGroup === 'B' ? 'selected' : ''}>B</option>
+                        <option value="C" ${student.affinityGroup === 'C' ? 'selected' : ''}>C</option>
+                    </select>
                 </div>
 
                 <div class="modal-section exceptions-section">
@@ -446,6 +459,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('edit-student-form').onsubmit = (e) => {
             e.preventDefault();
             student.name = document.getElementById('edit-student-name').value;
+            student.affinityGroup = document.getElementById('edit-student-affinity').value || 'A';
             student.exceptions = modalExceptions;
             student.preferredDates = modalPreferred;
             saveStudents();
@@ -695,7 +709,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (printBtn) {
-        printBtn.addEventListener('click', () => window.print());
+        printBtn.addEventListener('click', () => {
+            if (lastGeneratedSchedule && calendarOutput.innerHTML === '') {
+                renderCalendarView(lastGeneratedSchedule.finalSchedule);
+            }
+            window.print();
+        });
     }
 
     if (generateBtn) {
@@ -1007,6 +1026,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const studentStats = students.map(s => ({
             id: s.id,
             name: s.name,
+            affinityGroup: s.affinityGroup,
             totalHours: 0,
             requiredHours: rotationConfig.requiredHours,
             coveredActivities: new Set(),
@@ -1044,6 +1064,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 if (eligible.length > 0) {
                     // Pick student who NEEDS this activity name most OR needs a Plantão
+                    // ADDED: Or shares an affinity group with someone already in this slot
                     eligible.sort((a, b) => {
                         const statsA = studentStats.find(st => st.id === a.id);
                         const statsB = studentStats.find(st => st.id === b.id);
@@ -1059,7 +1080,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         // Priority 2: Mandatory Plantao Coverage
                         if (needsPlantaoA !== needsPlantaoB) return needsPlantaoA ? -1 : 1;
 
-                        // Priority 3: Hours Balance
+                        // Priority 3: Affinity Group (SOFT CONSTRAINT)
+                        if (slot.assignedIds.length > 0) {
+                            const groupInSlot = studentStats.filter(st => slot.assignedIds.includes(st.id)).map(st => st.affinityGroup);
+                            const sharesA = statsA.affinityGroup && groupInSlot.includes(statsA.affinityGroup);
+                            const sharesB = statsB.affinityGroup && groupInSlot.includes(statsB.affinityGroup);
+                            if (sharesA !== sharesB) return sharesA ? -1 : 1;
+                        }
+
+                        // Priority 4: Hours Balance
                         return statsA.totalHours - statsB.totalHours || (Math.random() - 0.5);
                     });
 
@@ -1112,7 +1141,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (needingHoursOrCoverage.length === 0) break;
 
-                // Prioritize Coverage then Preferences
+                // Prioritize Coverage then Affinity then Preferences
                 needingHoursOrCoverage.sort((a, b) => {
                     const statsA = studentStats.find(st => st.id === a.id);
                     const statsB = studentStats.find(st => st.id === b.id);
@@ -1124,6 +1153,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     if (needsActA !== needsActB) return needsActA ? -1 : 1;
                     if (needsPlantaoA !== needsPlantaoB) return needsPlantaoA ? -1 : 1;
+
+                    // Affinity Group (SOFT CONSTRAINT)
+                    if (slot.assignedIds.length > 0) {
+                        const groupInSlot = studentStats.filter(st => slot.assignedIds.includes(st.id)).map(st => st.affinityGroup);
+                        const sharesA = statsA.affinityGroup && groupInSlot.includes(statsA.affinityGroup);
+                        const sharesB = statsB.affinityGroup && groupInSlot.includes(statsB.affinityGroup);
+                        if (sharesA !== sharesB) return sharesA ? -1 : 1;
+                    }
 
                     const prefA = hasPreference(a, dateStr, slot.activity);
                     const prefB = hasPreference(b, dateStr, slot.activity);
@@ -1205,6 +1242,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let emptyCount = 0;
         let understaffedPenalty = 0;
         let coveragePenalty = 0;
+        let affinityBonus = 0;
 
         finalSchedule.forEach(day => {
             day.slots.forEach(slot => {
@@ -1215,6 +1253,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     emptyCount++;
                 } else if (assigned < min) {
                     understaffedPenalty += (min - assigned);
+                }
+
+                // Affinity Reward: Check pairs within the slot
+                if (assigned > 1) {
+                    const studentObjs = slot.assigned.map(name => students.find(s => s.name === name));
+                    for (let i = 0; i < studentObjs.length; i++) {
+                        for (let j = i + 1; j < studentObjs.length; j++) {
+                            const s1 = studentObjs[i];
+                            const s2 = studentObjs[j];
+                            if (s1 && s2 && s1.affinityGroup && s1.affinityGroup === s2.affinityGroup) {
+                                affinityBonus += 50; // Bonus for each pairing
+                            }
+                        }
+                    }
                 }
             });
         });
@@ -1234,11 +1286,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const avg = hours.reduce((a, b) => a + b, 0) / hours.length;
         const variance = hours.reduce((a, b) => a + Math.pow(b - avg, 2), 0) / hours.length;
 
-        // Score: Higher weights for critical requirements
+        // Score: Higher weights for critical requirements, subtract bonus
         return (emptyCount * 1000000) + 
                (understaffedPenalty * 100000) + 
                (coveragePenalty * 1000) + 
-               variance;
+               variance - affinityBonus;
     }
 
     function checkOverlap(start1, end1, start2, end2) {
@@ -1438,9 +1490,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     students = importedData.students || [];
                     lastGeneratedSchedule = importedData.lastGeneratedSchedule || null;
 
-                    // Ensure all students have a color
+                    // Ensure all students have a color and affinity group
                     students.forEach(s => {
                         if (!s.color) s.color = getRandomColor();
+                        if (!s.affinityGroup) s.affinityGroup = 'A';
                     });
 
                     // Update localStorage

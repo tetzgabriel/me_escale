@@ -276,6 +276,19 @@ button:hover {
     font-weight: bold;
 }
 
+.affinity-badge {
+    font-size: 10px;
+    background-color: #ebf5fb;
+    color: var(--accent-color);
+    padding: 2px 8px;
+    border-radius: 10px;
+    border: 1px solid #d4e6f1;
+    font-weight: bold;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+}
+
 .activity-details {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -796,33 +809,85 @@ button:hover {
 }
 
 @media print {
-    .form-section, .global-settings, .generator-section button, .data-management, h1, p, .view-controls {
+    .form-section, 
+    .global-settings, 
+    .generator-section button, 
+    .data-management, 
+    h1, 
+    p, 
+    .view-controls,
+    .results-header h2,
+    #statistics-output,
+    #schedule-output,
+    .list-section,
+    .student-section,
+    #health-warning {
         display: none !important;
     }
+    
     .container {
         box-shadow: none;
         padding: 0;
+        margin: 0;
         max-width: 100%;
+        width: 100%;
     }
+    
     #results-container {
         display: block !important;
         border: none;
         margin: 0;
         padding: 0;
     }
+
+    #calendar-output {
+        display: block !important;
+    }
+
+    .calendar-month {
+        page-break-after: always;
+        break-after: page;
+        page-break-inside: auto;
+        break-inside: auto;
+        margin-bottom: 0;
+    }
+
+    .calendar-day {
+        page-break-inside: avoid;
+        break-inside: avoid;
+    }
+
+    .calendar-event {
+        page-break-inside: avoid;
+        break-inside: avoid;
+    }
+
+    .calendar-month:last-child {
+        page-break-after: auto;
+        break-after: auto;
+    }
+
     .calendar-grid {
         border-color: #000;
     }
+    
     .calendar-day, .calendar-day-header {
         border-color: #000;
     }
+    
     .calendar-event {
         border: 1px solid #ccc;
         color: #000 !important;
         background-color: transparent !important;
     }
+    
     .calendar-event.empty-slot {
         background-color: #eee !important;
+    }
+
+    body {
+        padding: 0;
+        background-color: white;
     }
 }
 
