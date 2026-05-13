@@ -99,6 +99,16 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Toggle Rules List
+    const toggleRulesBtn = document.getElementById('toggle-rules');
+    if (toggleRulesBtn) {
+        toggleRulesBtn.addEventListener('click', () => {
+            const content = document.getElementById('rules-container');
+            toggleRulesBtn.classList.toggle('active');
+            content.classList.toggle('hidden');
+        });
+    }
+
     // Global dates handler
     saveGlobalBtn.addEventListener('click', () => {
         rotationConfig.startDate = document.getElementById('rotation-start').value;

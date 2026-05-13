@@ -285,6 +285,35 @@ button:hover {
     border-left: 5px solid var(--accent-color);
 }
 
+.rules-card {
+    background: #fff;
+    border: 1px solid var(--border-color);
+    padding: 20px;
+    margin-bottom: 15px;
+    border-radius: 4px;
+    border-left: 5px solid var(--secondary-color);
+}
+
+.rules-list {
+    list-style: none;
+    padding: 0;
+}
+
+.rules-list li {
+    margin-bottom: 10px;
+    font-size: 14px;
+    position: relative;
+    padding-left: 20px;
+}
+
+.rules-list li::before {
+    content: "•";
+    position: absolute;
+    left: 0;
+    color: var(--accent-color);
+    font-weight: bold;
+}
+
 .student-card {
     border-left: 5px solid var(--success-color);
 }

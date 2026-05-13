@@ -174,6 +174,29 @@
             </div>
         </section>
 
+        <section class="list-section">
+            <div class="collapsible-header" id="toggle-rules">
+                <h2>Regras e Restrições do Algoritmo</h2>
+                <span class="toggle-icon">▶</span>
+            </div>
+            <div id="rules-container" class="collapsible-content hidden">
+                <div class="rules-card">
+                    <ul class="rules-list">
+                        <li><strong>Cobertura Obrigatória:</strong> Todas as atividades devem ter pelo menos o número mínimo de alunos definido.</li>
+                        <li><strong>Sem Sobreposições:</strong> Um aluno nunca será alocado em duas atividades que ocorrem no mesmo horário.</li>
+                        <li><strong>Exceções Respeitadas:</strong> O algoritmo nunca alocará um aluno em datas ou horários marcados como suas exceções.</li>
+                        <li><strong>Atividades Suspensas:</strong> Atividades não são agendadas em datas marcadas como exceção da própria atividade.</li>
+                        <li><strong>Descanso entre Plantões:</strong> Alunos que realizam um <strong>PLANTÃO</strong> em um dia não serão alocados para outro <strong>PLANTÃO</strong> no dia seguinte (regra de 24h de intervalo).</li>
+                        <li><strong>Equilíbrio de Carga Horária:</strong> O algoritmo busca distribuir as horas de forma que todos cheguem o mais próximo possível da meta definida.</li>
+                        <li><strong>Rodízio de Atividades:</strong> O sistema prioriza que cada aluno passe por todos os tipos de atividades e locais pelo menos uma vez.</li>
+                        <li><strong>Garantia de Plantão:</strong> Todos os alunos são priorizados para realizar pelo menos um PLANTÃO durante o período.</li>
+                        <li><strong>Grupos de Afinidade:</strong> Alunos do mesmo grupo (A, B ou C) têm prioridade para serem alocados juntos na mesma atividade.</li>
+                        <li><strong>Preferências Pessoais:</strong> Datas marcadas como preferenciais pelo aluno são priorizadas durante a alocação.</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
         <section class="generator-section">
             <button type="button" id="generate-btn">Gerar Escala de Rodízio</button>
             <div id="health-warning" class="hidden health-alert"></div>
