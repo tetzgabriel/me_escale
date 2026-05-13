@@ -783,6 +783,32 @@ button:hover {
     line-height: 1.5;
 }
 
+.app-footer {
+    margin-top: 50px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border-color);
+    text-align: center;
+    color: #7f8c8d;
+    font-size: 14px;
+}
+
+.app-footer p {
+    margin-bottom: 10px;
+}
+
+.app-footer strong {
+    color: var(--primary-color);
+}
+
+.app-footer a {
+    color: var(--accent-color);
+    text-decoration: none;
+}
+
+.app-footer a:hover {
+    text-decoration: underline;
+}
+
 @media print {
     .form-section, 
     .global-settings, 
@@ -796,7 +822,8 @@ button:hover {
     #schedule-output,
     .list-section,
     .student-section,
-    #health-warning {
+    #health-warning,
+    .app-footer {
         display: none !important;
     }
     
