@@ -1227,7 +1227,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         // Priority 2: Mandatory Plantao Coverage
                         if (needsPlantaoA !== needsPlantaoB) return needsPlantaoA ? -1 : 1;
 
-                        // Priority 3: Affinity Group (SOFT CONSTRAINT)
+                        // Priority 3: Preferences (Elevated Priority)
+                        const scoreA = getPreferenceScore(a, dateStr, slot.activity);
+                        const scoreB = getPreferenceScore(b, dateStr, slot.activity);
+                        if (scoreA !== scoreB) return scoreB - scoreA; // Higher score first
+
+                        // Priority 4: Affinity Group (SOFT CONSTRAINT)
                         if (slot.assignedIds.length > 0) {
                             const groupInSlot = studentStats.filter(st => slot.assignedIds.includes(st.id)).map(st => st.affinityGroup);
                             const sharesA = statsA.affinityGroup && groupInSlot.includes(statsA.affinityGroup);
@@ -1235,7 +1240,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (sharesA !== sharesB) return sharesA ? -1 : 1;
                         }
 
-                        // Priority 4: Hours Balance
+                        // Priority 5: Hours Balance
                         return statsA.totalHours - statsB.totalHours || (Math.random() - 0.5);
                     });
 
@@ -1305,17 +1310,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (needsActA !== needsActB) return needsActA ? -1 : 1;
                     if (needsPlantaoA !== needsPlantaoB) return needsPlantaoA ? -1 : 1;
 
-                    // Affinity Group (SOFT CONSTRAINT)
+                    // Priority 3: Preferences (Elevated Priority)
+                    const scoreA = getPreferenceScore(a, dateStr, slot.activity);
+                    const scoreB = getPreferenceScore(b, dateStr, slot.activity);
+                    if (scoreA !== scoreB) return scoreB - scoreA;
+
+                    // Priority 4: Affinity Group (SOFT CONSTRAINT)
                     if (slot.assignedIds.length > 0) {
                         const groupInSlot = studentStats.filter(st => slot.assignedIds.includes(st.id)).map(st => st.affinityGroup);
                         const sharesA = statsA.affinityGroup && groupInSlot.includes(statsA.affinityGroup);
                         const sharesB = statsB.affinityGroup && groupInSlot.includes(statsB.affinityGroup);
                         if (sharesA !== sharesB) return sharesA ? -1 : 1;
                     }
-
-                    const prefA = hasPreference(a, dateStr, slot.activity);
-                    const prefB = hasPreference(b, dateStr, slot.activity);
-                    if (prefA !== prefB) return prefA ? -1 : 1;
 
                     return statsA.totalHours - statsB.totalHours || (Math.random() - 0.5);
                 });
@@ -1427,20 +1433,53 @@ document.addEventListener('DOMContentLoaded', () => {
         );
     }
 
-    function hasPreference(student, dateStr, activity) {
-        if (!student.preferredDates) return false;
-        return student.preferredDates.some(pref => {
-            if (typeof pref === 'string') return pref === dateStr;
-            if (pref.date !== dateStr) return false;
-            if (!pref.startTime || !pref.endTime) return true;
-            return checkOverlap(pref.startTime, pref.endTime, activity.startTime, activity.endTime);
+    function getPreferenceScore(student, dateStr, activity) {
+        if (!student.preferredDates) return 0;
+        
+        const activityDuration = activity.hoursCount || 0;
+        let bestScore = 0;
+
+        student.preferredDates.forEach(pref => {
+            let matches = false;
+            let prefDuration = 0;
+
+            if (typeof pref === 'string') {
+                if (pref === dateStr) matches = true;
+            } else if (pref.date === dateStr) {
+                if (!pref.startTime || !pref.endTime) {
+                    matches = true;
+                } else if (checkOverlap(pref.startTime, pref.endTime, activity.startTime, activity.endTime)) {
+                    matches = true;
+                    // Calculate preference duration in hours
+                    const [h1, m1] = pref.startTime.split(':').map(Number);
+                    const [h2, m2] = pref.endTime.split(':').map(Number);
+                    prefDuration = (h2 + m2/60) - (h1 + m1/60);
+                }
+            }
+
+            if (matches) {
+                let currentScore = 1; // Basic date/overlap match
+                
+                // Extra priority: 12h preference matched with 12h activity (like Plantão)
+                if (prefDuration >= 11.5 && activityDuration >= 11.5) {
+                    currentScore = 3; 
+                } else if (Math.abs(prefDuration - activityDuration) < 1) {
+                    // Good duration match
+                    currentScore = 2;
+                }
+                
+                if (currentScore > bestScore) bestScore = currentScore;
+            }
         });
+
+        return bestScore;
     }
 
     function calculateScore({ finalSchedule, studentStats }, mandatoryActivities) {
         let emptyCount = 0;
         let understaffedPenalty = 0;
         let coveragePenalty = 0;
+        let preferenceBonus = 0;
         let affinityBonus = 0;
         let distributionPenalty = 0;
 
@@ -1462,15 +1501,27 @@ document.addEventListener('DOMContentLoaded', () => {
                     distributionPenalty += Math.abs(assigned - ideal) * 10;
                 }
 
-                // Affinity Reward: Check pairs within the slot
-                if (assigned > 1) {
+                // Preference Bonus and Affinity Reward
+                if (assigned > 0) {
                     const studentObjs = slot.assigned.map(name => students.find(s => s.name === name));
-                    for (let i = 0; i < studentObjs.length; i++) {
-                        for (let j = i + 1; j < studentObjs.length; j++) {
-                            const s1 = studentObjs[i];
-                            const s2 = studentObjs[j];
-                            if (s1 && s2 && s1.affinityGroup && s1.affinityGroup === s2.affinityGroup) {
-                                affinityBonus += 50; // Bonus for each pairing
+                    
+                    // Preference Bonus
+                    studentObjs.forEach(s => {
+                        const pScore = s ? getPreferenceScore(s, day.date, slot.activity) : 0;
+                        if (pScore > 0) {
+                            preferenceBonus += (pScore * 100); // 100 for date, 200 for duration, 300 for 12h-12h
+                        }
+                    });
+
+                    // Affinity Reward
+                    if (assigned > 1) {
+                        for (let i = 0; i < studentObjs.length; i++) {
+                            for (let j = i + 1; j < studentObjs.length; j++) {
+                                const s1 = studentObjs[i];
+                                const s2 = studentObjs[j];
+                                if (s1 && s2 && s1.affinityGroup && s1.affinityGroup === s2.affinityGroup) {
+                                    affinityBonus += 50; // Bonus for each pairing
+                                }
                             }
                         }
                     }
@@ -1493,12 +1544,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const avg = hours.reduce((a, b) => a + b, 0) / hours.length;
         const variance = hours.reduce((a, b) => a + Math.pow(b - avg, 2), 0) / hours.length;
 
-        // Score: Higher weights for critical requirements, subtract bonus
+        // Score: Higher weights for critical requirements, subtract bonuses
         return (emptyCount * 1000000) + 
                (understaffedPenalty * 100000) + 
                (coveragePenalty * 1000) + 
                distributionPenalty +
-               variance - affinityBonus;
+               variance - affinityBonus - preferenceBonus;
     }
 
     function checkOverlap(start1, end1, start2, end2) {
