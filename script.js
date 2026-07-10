@@ -158,6 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
 
         // Extract values
+        const minStudentsInput = parseInt(document.getElementById('min-students-number').value);
         const newActivity = {
             id: Date.now(),
             day: document.getElementById('day').value,
@@ -167,7 +168,7 @@ document.addEventListener('DOMContentLoaded', () => {
             type: document.getElementById('activity-type').value,
             location: document.getElementById('location').value,
             studentsCount: parseInt(document.getElementById('students-number').value),
-            minStudents: parseInt(document.getElementById('min-students-number').value) || 1,
+            minStudents: Number.isNaN(minStudentsInput) ? 1 : minStudentsInput,
             hoursCount: parseFloat(document.getElementById('hours-count').value),
             exceptions: [...currentExceptions]
         };
@@ -556,7 +557,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span><strong>Dia:</strong> ${dayTranslations[activity.day]}</span>
                         <span><strong>Horário:</strong> ${activity.startTime} - ${activity.endTime}</span>
                         <span><strong>Local:</strong> ${activity.location}</span>
-                        <span><strong>Alunos:</strong> ${activity.minStudents || 1}-${activity.studentsCount}</span>
+                        <span><strong>Alunos:</strong> ${activity.minStudents ?? 1}-${activity.studentsCount}</span>
                         <span><strong>Horas:</strong> ${activity.hoursCount}</span>
                     </div>
                     ${exceptionsHtml}
@@ -613,7 +614,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="form-row">
                     <div class="form-group">
                         <label>Alunos (Mín)</label>
-                        <input type="number" id="edit-min-students" value="${activity.minStudents || 1}" required>
+                        <input type="number" id="edit-min-students" min="0" value="${activity.minStudents ?? 1}" required>
                     </div>
                     <div class="form-group">
                         <label>Alunos (Máx)</label>
@@ -675,7 +676,8 @@ document.addEventListener('DOMContentLoaded', () => {
             activity.name = document.getElementById('edit-activity-name').value;
             activity.type = document.getElementById('edit-activity-type').value;
             activity.location = document.getElementById('edit-location').value;
-            activity.minStudents = parseInt(document.getElementById('edit-min-students').value) || 1;
+            const editedMin = parseInt(document.getElementById('edit-min-students').value);
+            activity.minStudents = Number.isNaN(editedMin) ? 1 : editedMin;
             activity.studentsCount = parseInt(document.getElementById('edit-students-number').value);
             activity.hoursCount = parseFloat(document.getElementById('edit-hours-count').value);
             activity.exceptions = modalExceptions;
@@ -751,7 +753,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const start = new Date(rotationConfig.startDate + 'T00:00:00');
         const end = new Date(rotationConfig.endDate + 'T00:00:00');
-        const todayStr = new Date().toISOString().split('T')[0];
+        const todayStr = toLocalDateStr(new Date());
 
         // Iterate through each month in the range
         let currentMonth = new Date(start.getFullYear(), start.getMonth(), 1);
@@ -977,16 +979,44 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // 2.5 Check back-to-back rule
+        // 2.3 Check student unavailability (exceptions)
+        const studentObj = students.find(s => s.name === studentName);
+        if (studentObj && hasException(studentObj, targetDate, targetSlot.activity)) {
+            if (!confirm(`${studentName} possui uma exceção (indisponibilidade) nesta data/horário. Deseja forçar esta atribuição?`)) {
+                return;
+            }
+        }
+
+        // Ignore assignments in the slot the student is being moved out of
+        const isSourceSlot = (dateStr, slot) => dateStr === sourceDate && slot.activity.id == sourceActivityId;
+
+        // 2.4 Check time overlap with the student's other activities on the target day
+        const hasTimeOverlap = targetDay.slots.some(s =>
+            s !== targetSlot &&
+            !isSourceSlot(targetDate, s) &&
+            s.assigned.includes(studentName) &&
+            checkOverlap(s.activity.startTime, s.activity.endTime, targetSlot.activity.startTime, targetSlot.activity.endTime)
+        );
+        if (hasTimeOverlap) {
+            if (!confirm(`${studentName} já possui outra atividade em horário sobreposto neste dia. Deseja forçar esta atribuição?`)) {
+                return;
+            }
+        }
+
+        // 2.5 Check rest rule (no plantão on the same day or adjacent days)
         if (isPlantao(targetSlot.activity.type)) {
-            const hasAdjacent = (offset) => {
+            const hasPlantaoConflict = (offset) => {
                 const adjDate = getAdjacentDateStr(targetDate, offset);
                 const adjDay = finalSchedule.find(d => d.date === adjDate);
                 if (!adjDay) return false;
-                return adjDay.slots.some(s => isPlantao(s.activity.type) && s.assigned.includes(studentName));
+                return adjDay.slots.some(s =>
+                    s !== targetSlot &&
+                    !isSourceSlot(adjDate, s) &&
+                    isPlantao(s.activity.type) && s.assigned.includes(studentName)
+                );
             };
-            if (hasAdjacent(-1) || hasAdjacent(1)) {
-                if (!confirm(`${studentName} já possui um PLANTÃO no dia anterior ou posterior. Deseja forçar esta atribuição?`)) {
+            if (hasPlantaoConflict(-1) || hasPlantaoConflict(0) || hasPlantaoConflict(1)) {
+                if (!confirm(`${studentName} já possui um PLANTÃO no mesmo dia, no dia anterior ou posterior. Deseja forçar esta atribuição?`)) {
                     return;
                 }
             }
@@ -1098,7 +1128,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         let current = new Date(start);
         while (current <= end) {
-            const dateStr = current.toISOString().split('T')[0];
+            const dateStr = toLocalDateStr(current);
             const dayName = current.toLocaleDateString('en-US', { weekday: 'long' });
             
             acts.forEach(a => {
@@ -1128,11 +1158,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const uniqueActivityNames = new Set();
 
         dateArray.forEach(date => {
-            const dateStr = date.toISOString().split('T')[0];
+            const dateStr = toLocalDateStr(date);
             const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
             activities.forEach(a => {
                 if (a.day === dayName && (!a.exceptions || !a.exceptions.includes(dateStr))) {
-                    totalMinimumActivityHours += a.hoursCount * (a.minStudents || 1);
+                    totalMinimumActivityHours += a.hoursCount * (a.minStudents ?? 1);
                     allPotentialSlots.push({
                         dateStr,
                         dayName,
@@ -1154,7 +1184,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let bestResult = null;
         let bestScore = Infinity;
 
-        const ATTEMPTS = 100;
+        const ATTEMPTS = 200;
         for (let i = 0; i < ATTEMPTS; i++) {
             const currentAttempt = runSingleAttempt(allPotentialSlots, mandatoryActivities);
             const currentScore = calculateScore(currentAttempt, mandatoryActivities);
@@ -1166,7 +1196,111 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
+        // Post-optimization: swap students between instances of the same activity on different
+        // dates to keep affinity groups together. Hours, coverage and plantão counts stay identical.
+        optimizeAffinitySwaps(bestResult.finalSchedule);
+
         return { ...bestResult, healthWarning, mandatoryActivities };
+    }
+
+    function optimizeAffinitySwaps(finalSchedule) {
+        const nameToStudent = {};
+        students.forEach(s => { nameToStudent[s.name] = s; });
+        const dayByDate = {};
+        finalSchedule.forEach(day => { dayByDate[day.date] = day; });
+
+        // Group slot instances by activity (same id = same weekly activity, hours and times)
+        const byActivity = {};
+        finalSchedule.forEach(day => {
+            day.slots.forEach(slot => {
+                (byActivity[slot.activity.id] ||= []).push({ date: day.date, slot });
+            });
+        });
+
+        const slotAffinityPairs = (names) => {
+            let pairs = 0;
+            for (let i = 0; i < names.length; i++) {
+                for (let j = i + 1; j < names.length; j++) {
+                    const g1 = nameToStudent[names[i]] && nameToStudent[names[i]].affinityGroup;
+                    const g2 = nameToStudent[names[j]] && nameToStudent[names[j]].affinityGroup;
+                    if (g1 && g1 === g2) pairs++;
+                }
+            }
+            return pairs;
+        };
+
+        // Can `name` take `activity` on `date`, ignoring the two slots being swapped?
+        const canPlace = (name, date, activity, ignoredSlots) => {
+            const student = nameToStudent[name];
+            if (student && hasException(student, date, activity)) return false;
+
+            const day = dayByDate[date];
+            if (day && day.slots.some(s =>
+                !ignoredSlots.includes(s) && s.assigned.includes(name) &&
+                checkOverlap(s.activity.startTime, s.activity.endTime, activity.startTime, activity.endTime))) {
+                return false;
+            }
+
+            if (isPlantao(activity.type)) {
+                for (const offset of [-1, 0, 1]) {
+                    const adjDay = dayByDate[getAdjacentDateStr(date, offset)];
+                    if (adjDay && adjDay.slots.some(s =>
+                        !ignoredSlots.includes(s) && isPlantao(s.activity.type) && s.assigned.includes(name))) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        };
+
+        let improved = true;
+        let passes = 0;
+        while (improved && passes < 5) {
+            improved = false;
+            passes++;
+
+            Object.values(byActivity).forEach(instances => {
+                for (let a = 0; a < instances.length; a++) {
+                    for (let b = a + 1; b < instances.length; b++) {
+                        const instA = instances[a];
+                        const instB = instances[b];
+                        if (instA.date === instB.date) continue;
+
+                        let swapped = false;
+                        for (const x of [...instA.slot.assigned]) {
+                            if (swapped) break;
+                            for (const y of [...instB.slot.assigned]) {
+                                if (x === y || instA.slot.assigned.includes(y) || instB.slot.assigned.includes(x)) continue;
+
+                                const newA = instA.slot.assigned.map(n => n === x ? y : n);
+                                const newB = instB.slot.assigned.map(n => n === y ? x : n);
+                                const affinityGain = (slotAffinityPairs(newA) + slotAffinityPairs(newB)) -
+                                    (slotAffinityPairs(instA.slot.assigned) + slotAffinityPairs(instB.slot.assigned));
+
+                                // Don't trade away personal date preferences for affinity
+                                const prefDelta =
+                                    (getPreferenceScore(nameToStudent[y] || {}, instA.date, instA.slot.activity) +
+                                     getPreferenceScore(nameToStudent[x] || {}, instB.date, instB.slot.activity)) -
+                                    (getPreferenceScore(nameToStudent[x] || {}, instA.date, instA.slot.activity) +
+                                     getPreferenceScore(nameToStudent[y] || {}, instB.date, instB.slot.activity));
+
+                                if (affinityGain * 5 + prefDelta <= 0) continue;
+
+                                const ignored = [instA.slot, instB.slot];
+                                if (!canPlace(x, instB.date, instB.slot.activity, ignored)) continue;
+                                if (!canPlace(y, instA.date, instA.slot.activity, ignored)) continue;
+
+                                instA.slot.assigned = newA;
+                                instB.slot.assigned = newB;
+                                improved = true;
+                                swapped = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+            });
+        }
     }
 
     function runSingleAttempt(allPotentialSlots, mandatoryActivities) {
@@ -1193,22 +1327,22 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         // 2. Global Phase 1: Minimum Staffing (Guarantee MINIMUM people per activity)
-        // Sort by scarcity (hardest first) + random for Monte Carlo
-        const phase1Order = [...allSlots].sort((a, b) => (a._scarcity - b._scarcity) || (Math.random() - 0.5));
+        // Shuffle first (random tie-break for Monte Carlo), then stable-sort by scarcity (hardest first)
+        const phase1Order = shuffleArray([...allSlots]).sort((a, b) => a._scarcity - b._scarcity);
         const dailyAssignments = {}; // { dateStr: [ {studentId, start, end} ] }
 
         phase1Order.forEach(slot => {
             const dateStr = slot.dateStr;
             if (!dailyAssignments[dateStr]) dailyAssignments[dateStr] = [];
 
-            const targetMin = slot.activity.minStudents || 1;
+            const targetMin = slot.activity.minStudents ?? 1;
 
             while (slot.assignedIds.length < targetMin) {
-                const eligible = students.filter(s => 
-                    !slot.assignedIds.includes(s.id) && 
+                const eligible = shuffleArray(students.filter(s =>
+                    !slot.assignedIds.includes(s.id) &&
                     isStudentEligible(s, dateStr, slot.activity, dailyAssignments)
-                );
-                
+                ));
+
                 if (eligible.length > 0) {
                     // Pick student who NEEDS this activity name most OR needs a Plantão
                     // ADDED: Or shares an affinity group with someone already in this slot
@@ -1240,8 +1374,13 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (sharesA !== sharesB) return sharesA ? -1 : 1;
                         }
 
-                        // Priority 5: Hours Balance
-                        return statsA.totalHours - statsB.totalHours || (Math.random() - 0.5);
+                        // Priority 5: Overshoot fit - prefer students whose remaining hour deficit absorbs this slot
+                        const overA = Math.max(0, slot.activity.hoursCount - Math.max(0, statsA.requiredHours - statsA.totalHours));
+                        const overB = Math.max(0, slot.activity.hoursCount - Math.max(0, statsB.requiredHours - statsB.totalHours));
+                        if (overA !== overB) return overA - overB;
+
+                        // Priority 6: Hours Balance (ties keep the pre-shuffled random order — sort is stable)
+                        return statsA.totalHours - statsB.totalHours;
                     });
 
                     const chosen = eligible[0];
@@ -1282,10 +1421,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const fillSlotToTarget = (slot, limit) => {
             const dateStr = slot.dateStr;
             while (slot.assignedIds.length < limit) {
-                const eligible = students.filter(s => 
-                    !slot.assignedIds.includes(s.id) && 
+                const eligible = shuffleArray(students.filter(s =>
+                    !slot.assignedIds.includes(s.id) &&
                     isStudentEligible(s, dateStr, slot.activity, dailyAssignments)
-                );
+                ));
 
                 // Only take students who still need hours OR still need this activity/plantao for coverage
                 const needingHoursOrCoverage = eligible.filter(s => {
@@ -1297,11 +1436,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (needingHoursOrCoverage.length === 0) break;
 
-                // Prioritize Coverage then Affinity then Preferences
+                // Prioritize Coverage then Preferences then Affinity
                 needingHoursOrCoverage.sort((a, b) => {
                     const statsA = studentStats.find(st => st.id === a.id);
                     const statsB = studentStats.find(st => st.id === b.id);
-                    
+
                     const needsActA = !statsA.coveredActivities.has(slot.activity.normalizedName);
                     const needsActB = !statsB.coveredActivities.has(slot.activity.normalizedName);
                     const needsPlantaoA = isPlantao(slot.activity.type) && !statsA.hasPlantao;
@@ -1310,7 +1449,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (needsActA !== needsActB) return needsActA ? -1 : 1;
                     if (needsPlantaoA !== needsPlantaoB) return needsPlantaoA ? -1 : 1;
 
-                    // Priority 3: Preferences (Elevated Priority)
+                    // Priority 3: Preferences
                     const scoreA = getPreferenceScore(a, dateStr, slot.activity);
                     const scoreB = getPreferenceScore(b, dateStr, slot.activity);
                     if (scoreA !== scoreB) return scoreB - scoreA;
@@ -1323,7 +1462,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (sharesA !== sharesB) return sharesA ? -1 : 1;
                     }
 
-                    return statsA.totalHours - statsB.totalHours || (Math.random() - 0.5);
+                    // Priority 5: Overshoot fit - prefer students whose remaining hour deficit absorbs this slot
+                    const overA = Math.max(0, slot.activity.hoursCount - Math.max(0, statsA.requiredHours - statsA.totalHours));
+                    const overB = Math.max(0, slot.activity.hoursCount - Math.max(0, statsB.requiredHours - statsB.totalHours));
+                    if (overA !== overB) return overA - overB;
+
+                    return statsA.totalHours - statsB.totalHours;
                 });
 
                 const chosen = needingHoursOrCoverage[0];
@@ -1343,16 +1487,16 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         // 3. Global Phase 2: Targeted Staffing (Fill up to the MEDIUM point)
-        const phase2Order = [...allSlots].sort(() => Math.random() - 0.5);
+        const phase2Order = shuffleArray([...allSlots]);
         phase2Order.forEach(slot => {
-            const min = slot.activity.minStudents || 1;
+            const min = slot.activity.minStudents ?? 1;
             const max = slot.activity.studentsCount;
             const ideal = Math.ceil((min + max) / 2);
             fillSlotToTarget(slot, ideal);
         });
 
         // 4. Global Phase 3: Final Staffing (Fill up to MAX if students still need hours/coverage)
-        const phase3Order = [...allSlots].sort(() => Math.random() - 0.5);
+        const phase3Order = shuffleArray([...allSlots]);
         phase3Order.forEach(slot => {
             fillSlotToTarget(slot, slot.activity.studentsCount);
         });
@@ -1381,10 +1525,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Helper Logic for Refactored Algorithm ---
 
+    // Formats a Date to YYYY-MM-DD using local time (toISOString shifts the date near midnight in UTC-negative timezones)
+    function toLocalDateStr(date) {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    }
+
+    // Unbiased Fisher-Yates shuffle (sort(() => Math.random() - 0.5) is biased and breaks sort's contract)
+    function shuffleArray(arr) {
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+    }
+
     function getAdjacentDateStr(dateStr, offset) {
         const d = new Date(dateStr + 'T00:00:00');
         d.setDate(d.getDate() + offset);
-        return d.toISOString().split('T')[0];
+        return toLocalDateStr(d);
     }
 
     function hasPlantaoOnAdjacentDay(studentId, dateStr, allDailyAssignments) {
@@ -1407,8 +1568,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const sameDayAssignments = allDailyAssignments[dateStr] || [];
         if (hasOverlap(student, dateStr, activity, sameDayAssignments)) return false;
 
-        // Back-to-back plantão check: If this is a plantão, student can't have one on adjacent days
+        // Rest rule: If this is a plantão, student can't have another plantão on the same day
+        // (even at non-overlapping times) nor on adjacent days
         if (isPlantao(activity.type)) {
+            const hasPlantaoSameDay = sameDayAssignments.some(as => as.studentId === student.id && isPlantao(as.type));
+            if (hasPlantaoSameDay) return false;
             if (hasPlantaoOnAdjacentDay(student.id, dateStr, allDailyAssignments)) return false;
         }
 
@@ -1486,12 +1650,12 @@ document.addEventListener('DOMContentLoaded', () => {
         finalSchedule.forEach(day => {
             day.slots.forEach(slot => {
                 const assigned = slot.assigned.length;
-                const min = slot.activity.minStudents || 1;
+                const min = slot.activity.minStudents ?? 1;
                 const max = slot.activity.studentsCount;
                 const ideal = Math.ceil((min + max) / 2);
-                
+
                 if (assigned === 0) {
-                    emptyCount++;
+                    if (min > 0) emptyCount++;
                 } else if (assigned < min) {
                     understaffedPenalty += (min - assigned);
                 }
@@ -1520,7 +1684,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 const s1 = studentObjs[i];
                                 const s2 = studentObjs[j];
                                 if (s1 && s2 && s1.affinityGroup && s1.affinityGroup === s2.affinityGroup) {
-                                    affinityBonus += 50; // Bonus for each pairing
+                                    affinityBonus += 100; // Bonus for each pairing (kept moderate: the post-generation swap pass maximizes affinity without touching hours balance)
                                 }
                             }
                         }
@@ -1530,6 +1694,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         // Calculate student-specific coverage penalties
+        let hoursShortfall = 0;
         studentStats.forEach(stat => {
             // Penalty for missing mandatory activities
             const missingCount = mandatoryActivities.length - stat.coveredActivities.size;
@@ -1537,6 +1702,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Penalty for missing Plantao
             if (!stat.hasPlantao) coveragePenalty += 100;
+
+            // Penalty for finishing below the required hours target
+            hoursShortfall += Math.max(0, stat.requiredHours - stat.totalHours);
         });
 
         // Calculate variance in student hours (lower is more balanced)
@@ -1545,11 +1713,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const variance = hours.reduce((a, b) => a + Math.pow(b - avg, 2), 0) / hours.length;
 
         // Score: Higher weights for critical requirements, subtract bonuses
-        return (emptyCount * 1000000) + 
-               (understaffedPenalty * 100000) + 
-               (coveragePenalty * 1000) + 
+        return (emptyCount * 1000000) +
+               (understaffedPenalty * 100000) +
+               (coveragePenalty * 1000) +
+               (hoursShortfall * 200) +
                distributionPenalty +
-               variance - affinityBonus - preferenceBonus;
+               (variance * 400) - affinityBonus - preferenceBonus;
     }
 
     function checkOverlap(start1, end1, start2, end2) {
@@ -1654,7 +1823,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         
-        const dateStr = new Date().toISOString().split('T')[0];
+        const dateStr = toLocalDateStr(new Date());
         a.href = url;
         a.download = `backup_escalas_med_${dateStr}.json`;
         document.body.appendChild(a);
@@ -1803,12 +1972,4 @@ document.addEventListener('DOMContentLoaded', () => {
             alert('Todos os dados foram excluídos com sucesso.');
         }
     });
-
-    function saveActivities() {
-        localStorage.setItem('med_rotations_activities', JSON.stringify(activities));
-    }
-
-    function saveStudents() {
-        localStorage.setItem('med_rotations_students', JSON.stringify(students));
-    }
 });
