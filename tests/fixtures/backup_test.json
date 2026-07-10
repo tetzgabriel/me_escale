@@ -1,0 +1,366 @@
+{
+  "version": 1,
+  "config": {
+    "startDate": "2026-05-19",
+    "endDate": "2026-07-01",
+    "requiredHours": 204
+  },
+  "activities": [
+    {
+      "id": 1778590899769,
+      "day": "Monday",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "name": "Plantão",
+      "location": "Santa Casa",
+      "studentsCount": 1,
+      "hoursCount": 12,
+      "exceptions": []
+    },
+    {
+      "id": 1778590963486,
+      "day": "Monday",
+      "startTime": "07:00",
+      "endTime": "12:00",
+      "name": "Ortopedia",
+      "location": "CEM",
+      "studentsCount": 4,
+      "hoursCount": 5,
+      "exceptions": [],
+      "type": "AMBULATORIO"
+    },
+    {
+      "id": 1778591059922,
+      "day": "Monday",
+      "startTime": "13:00",
+      "endTime": "17:00",
+      "name": "Ortopedia",
+      "location": "CEM",
+      "studentsCount": 6,
+      "hoursCount": 4,
+      "exceptions": [],
+      "type": "AMBULATORIO"
+    },
+    {
+      "id": 1778591112140,
+      "day": "Monday",
+      "startTime": "13:00",
+      "endTime": "17:00",
+      "name": "Geral",
+      "location": "CEM",
+      "studentsCount": 4,
+      "hoursCount": 4,
+      "exceptions": [],
+      "type": "AMBULATORIO"
+    },
+    {
+      "id": 1778591157121,
+      "day": "Tuesday",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "name": "Plantão ",
+      "location": "Santa Casa",
+      "studentsCount": 5,
+      "hoursCount": 12,
+      "exceptions": []
+    },
+    {
+      "id": 1778591180956,
+      "day": "Tuesday",
+      "startTime": "13:00",
+      "endTime": "17:00",
+      "name": "Urologia",
+      "location": "CEM",
+      "studentsCount": 4,
+      "hoursCount": 4,
+      "exceptions": [],
+      "type": "AMBULATORIO"
+    },
+    {
+      "id": 1778591206672,
+      "day": "Wednesday",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "name": "Plantão",
+      "location": "Santa Casa",
+      "studentsCount": 6,
+      "hoursCount": 12,
+      "exceptions": []
+    },
+    {
+      "id": 1778591228971,
+      "day": "Wednesday",
+      "startTime": "07:00",
+      "endTime": "12:00",
+      "name": "Dor",
+      "location": "CEM",
+      "studentsCount": 4,
+      "hoursCount": 5,
+      "exceptions": [],
+      "type": "AMBULATORIO"
+    },
+    {
+      "id": 1778591268122,
+      "day": "Wednesday",
+      "startTime": "07:00",
+      "endTime": "12:00",
+      "name": "Ortopedia",
+      "location": "CEM",
+      "studentsCount": 1,
+      "hoursCount": 5,
+      "exceptions": [],
+      "type": "AMBULATORIO"
+    },
+    {
+      "id": 1778591297022,
+      "day": "Wednesday",
+      "startTime": "13:00",
+      "endTime": "17:00",
+      "name": "Vascular",
+      "location": "CEM",
+      "studentsCount": 7,
+      "hoursCount": 4,
+      "exceptions": [],
+      "type": "AMBULATORIO"
+    },
+    {
+      "id": 1778591324123,
+      "day": "Wednesday",
+      "startTime": "13:00",
+      "endTime": "17:00",
+      "name": "Neuro",
+      "location": "CEM",
+      "studentsCount": 3,
+      "hoursCount": 4,
+      "exceptions": [],
+      "type": "AMBULATORIO"
+    },
+    {
+      "id": 1778591364456,
+      "day": "Thursday",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "name": "Plantão",
+      "location": "Santa Casa",
+      "studentsCount": 3,
+      "hoursCount": 12,
+      "exceptions": []
+    },
+    {
+      "id": 1778591435939,
+      "day": "Thursday",
+      "startTime": "07:00",
+      "endTime": "12:00",
+      "name": "Oftalmo",
+      "location": "CEM",
+      "studentsCount": 3,
+      "hoursCount": 5,
+      "exceptions": [],
+      "type": "AMBULATORIO"
+    },
+    {
+      "id": 1778591463356,
+      "day": "Thursday",
+      "startTime": "07:00",
+      "endTime": "12:00",
+      "name": "Ortopedia",
+      "location": "CEM",
+      "studentsCount": 5,
+      "hoursCount": 5,
+      "exceptions": [],
+      "type": "AMBULATORIO"
+    },
+    {
+      "id": 1778591489023,
+      "day": "Thursday",
+      "startTime": "07:00",
+      "endTime": "12:00",
+      "name": "Otorrino",
+      "location": "CEM",
+      "studentsCount": 3,
+      "hoursCount": 5,
+      "exceptions": [],
+      "type": "AMBULATORIO"
+    },
+    {
+      "id": 1778591871058,
+      "day": "Thursday",
+      "startTime": "13:00",
+      "endTime": "17:00",
+      "name": "Cir",
+      "location": "CEM",
+      "studentsCount": 3,
+      "hoursCount": 4,
+      "exceptions": [],
+      "type": "AMBULATORIO"
+    },
+    {
+      "id": 1778591887190,
+      "day": "Thursday",
+      "startTime": "13:00",
+      "endTime": "17:00",
+      "name": "Otorrino",
+      "location": "CEM",
+      "studentsCount": 5,
+      "hoursCount": 4,
+      "exceptions": [],
+      "type": "AMBULATORIO"
+    },
+    {
+      "id": 1778591907473,
+      "day": "Friday",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "name": "Plantão",
+      "location": "Santa Casa",
+      "studentsCount": 2,
+      "hoursCount": 12,
+      "exceptions": []
+    },
+    {
+      "id": 1778591925758,
+      "day": "Friday",
+      "startTime": "13:00",
+      "endTime": "17:00",
+      "name": "Urologia",
+      "location": "CEM",
+      "studentsCount": 4,
+      "hoursCount": 4,
+      "exceptions": [],
+      "type": "AMBULATORIO"
+    }
+  ],
+  "students": [
+    {
+      "id": 1778593065515,
+      "name": "Camila",
+      "exceptions": [
+        {
+          "date": "2026-05-19",
+          "startTime": "",
+          "endTime": ""
+        }
+      ],
+      "preferredDates": [],
+      "color": "#e67e22"
+    },
+    {
+      "id": 1778593100215,
+      "name": "Raquel",
+      "exceptions": [
+        {
+          "date": "2026-05-22",
+          "startTime": "",
+          "endTime": ""
+        },
+        {
+          "date": "2026-05-19",
+          "startTime": "",
+          "endTime": ""
+        }
+      ],
+      "preferredDates": [],
+      "color": "#2c3e50"
+    },
+    {
+      "id": 1778593111832,
+      "name": "Thayrine",
+      "exceptions": [],
+      "preferredDates": [],
+      "color": "#2980b9"
+    },
+    {
+      "id": 1778593125798,
+      "name": "Leonardo",
+      "exceptions": [
+        {
+          "date": "2026-06-03",
+          "startTime": "",
+          "endTime": ""
+        }
+      ],
+      "preferredDates": [],
+      "color": "#e67e22"
+    },
+    {
+      "id": 1778593203748,
+      "name": "Luisa",
+      "exceptions": [
+        {
+          "date": "2026-05-22",
+          "startTime": "12:00",
+          "endTime": "17:00"
+        },
+        {
+          "date": "2026-06-29",
+          "startTime": "",
+          "endTime": ""
+        }
+      ],
+      "preferredDates": [],
+      "color": "#f39c12"
+    },
+    {
+      "id": 1778593210448,
+      "name": "Samuel",
+      "exceptions": [],
+      "preferredDates": [],
+      "color": "#8e44ad"
+    },
+    {
+      "id": 1778593213015,
+      "name": "Victor",
+      "exceptions": [],
+      "preferredDates": [],
+      "color": "#34495e"
+    },
+    {
+      "id": 1778593215615,
+      "name": "Wendel",
+      "exceptions": [],
+      "preferredDates": [],
+      "color": "#3498db"
+    },
+    {
+      "id": 1778593473050,
+      "name": "Lucas",
+      "exceptions": [
+        {
+          "date": "2026-06-03",
+          "startTime": "",
+          "endTime": ""
+        }
+      ],
+      "preferredDates": [
+        {
+          "date": "2026-05-19",
+          "startTime": "07:00",
+          "endTime": "19:00"
+        },
+        {
+          "date": "2026-05-25",
+          "startTime": "07:00",
+          "endTime": "19:00"
+        },
+        {
+          "date": "2026-06-01",
+          "startTime": "07:00",
+          "endTime": "19:00"
+        },
+        {
+          "date": "2026-06-09",
+          "startTime": "07:00",
+          "endTime": "19:00"
+        }
+      ],
+      "color": "#16a085"
+    },
+    {
+      "id": 1778621926270,
+      "name": "Nina",
+      "exceptions": [],
+      "preferredDates": [],
+      "color": "#e74c3c"
+    }
+  ]
+}

@@ -978,3 +978,72 @@ button:hover {
         gap: 10px;
     }
 }
+/* --- Atribuições fixadas (📌) --- */
+.pin-toggle {
+    margin-left: 4px;
+    cursor: pointer;
+    opacity: 0.25;
+    font-size: 11px;
+}
+
+.pin-toggle:hover {
+    opacity: 0.8;
+}
+
+.calendar-student-tag.pinned {
+    outline: 2px solid #f39c12;
+    outline-offset: 1px;
+}
+
+.calendar-student-tag.pinned .pin-toggle {
+    opacity: 1;
+}
+
+/* --- Avisos de viabilidade da escala --- */
+.health-alert ul {
+    margin: 8px 0 0 18px;
+    padding: 0;
+    text-align: left;
+}
+
+.health-alert li {
+    margin-bottom: 4px;
+}
+
+/* --- Visão por aluno --- */
+.student-agenda-card {
+    background: var(--white);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 15px 20px;
+    margin-bottom: 20px;
+}
+
+.student-agenda-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.student-agenda-header h4 {
+    margin: 0;
+    color: var(--primary-color);
+    font-size: 16px;
+}
+
+.student-agenda-total {
+    margin-left: auto;
+    font-weight: bold;
+    color: var(--secondary-color);
+    font-size: 14px;
+}
+
+.student-agenda-table {
+    width: 100%;
+}
+
+.student-agenda-table td,
+.student-agenda-table th {
+    font-size: 13px;
+}

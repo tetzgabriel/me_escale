@@ -1,0 +1,8 @@
+{
+  "name": "me-escale",
+  "private": true,
+  "description": "Escala de rodízio para estudantes de medicina — app estático (HTML/CSS/JS puro)",
+  "scripts": {
+    "test": "node tests/run.js"
+  }
+}

@@ -1,3 +1,760 @@
+// =====================================================================
+// Núcleo do algoritmo de escala (puro: sem DOM e sem localStorage).
+// IMPORTANTE: esta função precisa ser totalmente autocontida, pois seu
+// código-fonte é serializado (toString) para rodar em um Web Worker.
+// =====================================================================
+function createSchedulerCore() {
+
+    // Formats a Date to YYYY-MM-DD using local time (toISOString shifts the date near midnight in UTC-negative timezones)
+    function toLocalDateStr(date) {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    }
+
+    function formatDateBR(dateStr) {
+        if (!dateStr || typeof dateStr !== 'string') return '';
+        const parts = dateStr.split('-');
+        return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : dateStr;
+    }
+
+    // Unbiased Fisher-Yates shuffle (sort(() => Math.random() - 0.5) is biased and breaks sort's contract)
+    function shuffleArray(arr) {
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+    }
+
+    function getAdjacentDateStr(dateStr, offset) {
+        const d = new Date(dateStr + 'T00:00:00');
+        d.setDate(d.getDate() + offset);
+        return toLocalDateStr(d);
+    }
+
+    function isPlantao(type) {
+        if (!type) return true; // Default to true for missing types (backward compatibility)
+        return type.toUpperCase()
+            .normalize("NFD")
+            .replace(/[̀-ͯ]/g, "")
+            .trim() === 'PLANTAO';
+    }
+
+    function normalizeActivityName(name) {
+        if (!name) return "";
+        return name.toUpperCase()
+            .normalize("NFD")
+            .replace(/[̀-ͯ]/g, "") // Remove accents
+            .replace(/[^A-Z0-9 ]/g, "")      // Remove special chars
+            .trim();
+    }
+
+    function checkOverlap(start1, end1, start2, end2) {
+        return (start1 < end2 && start2 < end1);
+    }
+
+    function hasException(student, dateStr, activity) {
+        if (!student.exceptions) return false;
+        return student.exceptions.some(exc => {
+            if (typeof exc === 'string') return exc === dateStr;
+            if (exc.date !== dateStr) return false;
+            if (!exc.startTime || !exc.endTime) return true;
+            return checkOverlap(exc.startTime, exc.endTime, activity.startTime, activity.endTime);
+        });
+    }
+
+    function hasOverlap(student, dateStr, activity, dailyAssignments) {
+        if (!dailyAssignments) return false;
+        return dailyAssignments.some(as =>
+            as.studentId === student.id &&
+            checkOverlap(as.startTime, as.endTime, activity.startTime, activity.endTime)
+        );
+    }
+
+    function hasPlantaoOnAdjacentDay(studentId, dateStr, allDailyAssignments) {
+        if (!allDailyAssignments) return false;
+
+        const checkDay = (offset) => {
+            const adjDate = getAdjacentDateStr(dateStr, offset);
+            const adjAssignments = allDailyAssignments[adjDate];
+            if (!adjAssignments) return false;
+            return adjAssignments.some(as => as.studentId === studentId && isPlantao(as.type));
+        };
+
+        return checkDay(-1) || checkDay(1);
+    }
+
+    function isStudentEligible(student, dateStr, activity, allDailyAssignments) {
+        if (hasException(student, dateStr, activity)) return false;
+
+        // Same day overlap check
+        const sameDayAssignments = allDailyAssignments[dateStr] || [];
+        if (hasOverlap(student, dateStr, activity, sameDayAssignments)) return false;
+
+        // Rest rule: If this is a plantão, student can't have another plantão on the same day
+        // (even at non-overlapping times) nor on adjacent days
+        if (isPlantao(activity.type)) {
+            const hasPlantaoSameDay = sameDayAssignments.some(as => as.studentId === student.id && isPlantao(as.type));
+            if (hasPlantaoSameDay) return false;
+            if (hasPlantaoOnAdjacentDay(student.id, dateStr, allDailyAssignments)) return false;
+        }
+
+        return true;
+    }
+
+    function getPreferenceScore(student, dateStr, activity) {
+        if (!student.preferredDates) return 0;
+
+        const activityDuration = activity.hoursCount || 0;
+        let bestScore = 0;
+
+        student.preferredDates.forEach(pref => {
+            let matches = false;
+            let prefDuration = 0;
+
+            if (typeof pref === 'string') {
+                if (pref === dateStr) matches = true;
+            } else if (pref.date === dateStr) {
+                if (!pref.startTime || !pref.endTime) {
+                    matches = true;
+                } else if (checkOverlap(pref.startTime, pref.endTime, activity.startTime, activity.endTime)) {
+                    matches = true;
+                    // Calculate preference duration in hours
+                    const [h1, m1] = pref.startTime.split(':').map(Number);
+                    const [h2, m2] = pref.endTime.split(':').map(Number);
+                    prefDuration = (h2 + m2/60) - (h1 + m1/60);
+                }
+            }
+
+            if (matches) {
+                let currentScore = 1; // Basic date/overlap match
+
+                // Extra priority: 12h preference matched with 12h activity (like Plantão)
+                if (prefDuration >= 11.5 && activityDuration >= 11.5) {
+                    currentScore = 3;
+                } else if (Math.abs(prefDuration - activityDuration) < 1) {
+                    // Good duration match
+                    currentScore = 2;
+                }
+
+                if (currentScore > bestScore) bestScore = currentScore;
+            }
+        });
+
+        return bestScore;
+    }
+
+    function calculateMandatoryActivities(acts, config) {
+        if (!config.startDate || !config.endDate) return [];
+
+        const start = new Date(config.startDate + 'T00:00:00');
+        const end = new Date(config.endDate + 'T00:00:00');
+        const uniqueNames = new Set();
+
+        let current = new Date(start);
+        while (current <= end) {
+            const dateStr = toLocalDateStr(current);
+            const dayName = current.toLocaleDateString('en-US', { weekday: 'long' });
+
+            acts.forEach(a => {
+                if (a.day === dayName && (!a.exceptions || !a.exceptions.includes(dateStr))) {
+                    uniqueNames.add(normalizeActivityName(a.name));
+                }
+            });
+            current.setDate(current.getDate() + 1);
+        }
+        return Array.from(uniqueNames);
+    }
+
+    // Every dated occurrence of every activity within the configured period
+    function buildPotentialSlots(activities, config) {
+        if (!config.startDate || !config.endDate) return [];
+        const startDate = new Date(config.startDate + 'T00:00:00');
+        const endDate = new Date(config.endDate + 'T00:00:00');
+        const slots = [];
+
+        let current = new Date(startDate);
+        while (current <= endDate) {
+            const dateStr = toLocalDateStr(current);
+            const dayName = current.toLocaleDateString('en-US', { weekday: 'long' });
+            activities.forEach(a => {
+                if (a.day === dayName && (!a.exceptions || !a.exceptions.includes(dateStr))) {
+                    slots.push({
+                        dateStr,
+                        dayName,
+                        activity: { ...a, normalizedName: normalizeActivityName(a.name) }
+                    });
+                }
+            });
+            current.setDate(current.getDate() + 1);
+        }
+        return slots;
+    }
+
+    // Pre-generation feasibility analysis: detects impossible targets before wasting a run
+    function analyzeFeasibility(activities, students, config) {
+        const errors = [];
+        const warnings = [];
+        if (!config || !config.startDate || !config.endDate || !Array.isArray(students) || students.length === 0) {
+            return { errors, warnings };
+        }
+
+        const slots = buildPotentialSlots(activities, config);
+        if (slots.length === 0) {
+            errors.push('Nenhuma atividade ocorre dentro do período configurado.');
+            return { errors, warnings };
+        }
+
+        const requiredHours = config.requiredHours || 0;
+        let maxCapacityHours = 0;
+        let minRequiredHours = 0;
+        slots.forEach(s => {
+            maxCapacityHours += (s.activity.hoursCount || 0) * (s.activity.studentsCount || 0);
+            minRequiredHours += (s.activity.hoursCount || 0) * (s.activity.minStudents ?? 1);
+        });
+
+        const neededHours = requiredHours * students.length;
+        if (neededHours > maxCapacityHours) {
+            const maxAvg = maxCapacityHours / students.length;
+            errors.push(`Meta de ${requiredHours}h por aluno é inatingível: mesmo lotando todas as atividades, a média máxima possível é de ${maxAvg.toFixed(1)}h por aluno.`);
+        }
+
+        const minAvg = minRequiredHours / students.length;
+        if (requiredHours > 0 && minAvg > requiredHours) {
+            warnings.push(`Para cobrir o mínimo de todas as atividades, os alunos terão em média ${minAvg.toFixed(1)}h — acima da meta de ${requiredHours}h por aluno.`);
+        }
+
+        // Slots where student exceptions alone already make the minimum impossible
+        const lowStaffMsgs = [];
+        slots.forEach(s => {
+            const min = s.activity.minStudents ?? 1;
+            if (min === 0) return;
+            const available = students.filter(st => !hasException(st, s.dateStr, s.activity)).length;
+            if (available < min) {
+                lowStaffMsgs.push(`${formatDateBR(s.dateStr)} — ${s.activity.name}: apenas ${available} aluno(s) disponível(is) para um mínimo de ${min}.`);
+            }
+        });
+        lowStaffMsgs.slice(0, 8).forEach(m => warnings.push(m));
+        if (lowStaffMsgs.length > 8) {
+            warnings.push(`... e mais ${lowStaffMsgs.length - 8} ocorrências de atividades com menos alunos disponíveis que o mínimo.`);
+        }
+
+        // Students whose exceptions block every plantão date
+        const hasPlantaoSlots = slots.some(s => isPlantao(s.activity.type));
+        if (hasPlantaoSlots) {
+            students.forEach(st => {
+                const anyDay = slots.some(s => isPlantao(s.activity.type) && !hasException(st, s.dateStr, s.activity));
+                if (!anyDay) warnings.push(`${st.name} não tem nenhuma data disponível para PLANTÃO (todas bloqueadas por exceções).`);
+            });
+        }
+
+        return { errors, warnings, maxCapacityHours, minRequiredHours, neededHours };
+    }
+
+    // input: { activities, students, config, pins, onProgress? }
+    function generate(input) {
+        const activities = input.activities || [];
+        const students = input.students || [];
+        const config = input.config || {};
+        const pins = input.pins || [];
+        const onProgress = typeof input.onProgress === 'function' ? input.onProgress : null;
+
+        const allPotentialSlots = buildPotentialSlots(activities, config);
+        const mandatoryActivities = calculateMandatoryActivities(activities, config);
+        const feasibility = analyzeFeasibility(activities, students, config);
+
+        // Resolve pinned assignments (manual drag-drop moves or 📌 toggles kept across re-generations)
+        const pinWarnings = [];
+        const validPins = [];
+        pins.forEach(pin => {
+            const student = students.find(s => String(s.id) === String(pin.studentId)) ||
+                            students.find(s => s.name === pin.studentName);
+            const slotExists = allPotentialSlots.some(s => s.dateStr === pin.date && String(s.activity.id) === String(pin.activityId));
+            if (!student || !slotExists) {
+                pinWarnings.push(`Fixação ignorada: ${pin.studentName || 'aluno desconhecido'} em ${formatDateBR(pin.date || '')} — o aluno ou a atividade não existe mais nessa data.`);
+                return;
+            }
+            validPins.push({ date: pin.date, activityId: pin.activityId, student });
+        });
+        const pinnedKeys = new Set(validPins.map(p => `${p.date}|${String(p.activityId)}|${p.student.name}`));
+
+        function runSingleAttempt() {
+            const studentStats = students.map(s => ({
+                id: s.id,
+                name: s.name,
+                affinityGroup: s.affinityGroup,
+                totalHours: 0,
+                requiredHours: config.requiredHours || 0,
+                coveredActivities: new Set(),
+                hasPlantao: false
+            }));
+
+            // Flatten all instances into individual slots
+            const allSlots = allPotentialSlots.map(s => ({
+                ...s,
+                assignedIds: [],
+                diagnostics: null
+            }));
+
+            // 1. Calculate Global Scarcity
+            allSlots.forEach(slot => {
+                slot._scarcity = students.filter(student => isStudentEligible(student, slot.dateStr, slot.activity, {})).length;
+            });
+
+            const dailyAssignments = {}; // { dateStr: [ {studentId, start, end} ] }
+
+            // 1.5 Apply pinned assignments first (user-forced; later phases respect them)
+            validPins.forEach(pin => {
+                const slot = allSlots.find(s => s.dateStr === pin.date && String(s.activity.id) === String(pin.activityId));
+                if (!slot) return;
+                if (slot.assignedIds.includes(pin.student.id)) return;
+                if (slot.assignedIds.length >= slot.activity.studentsCount) return;
+
+                const stats = studentStats.find(st => st.id === pin.student.id);
+                slot.assignedIds.push(pin.student.id);
+                stats.totalHours += slot.activity.hoursCount;
+                stats.coveredActivities.add(slot.activity.normalizedName);
+                if (isPlantao(slot.activity.type)) stats.hasPlantao = true;
+
+                if (!dailyAssignments[pin.date]) dailyAssignments[pin.date] = [];
+                dailyAssignments[pin.date].push({
+                    studentId: pin.student.id,
+                    startTime: slot.activity.startTime,
+                    endTime: slot.activity.endTime,
+                    type: slot.activity.type
+                });
+            });
+
+            // 2. Global Phase 1: Minimum Staffing (Guarantee MINIMUM people per activity)
+            // Shuffle first (random tie-break for Monte Carlo), then stable-sort by scarcity (hardest first)
+            const phase1Order = shuffleArray([...allSlots]).sort((a, b) => a._scarcity - b._scarcity);
+
+            phase1Order.forEach(slot => {
+                const dateStr = slot.dateStr;
+                if (!dailyAssignments[dateStr]) dailyAssignments[dateStr] = [];
+
+                const targetMin = slot.activity.minStudents ?? 1;
+
+                while (slot.assignedIds.length < targetMin) {
+                    const eligible = shuffleArray(students.filter(s =>
+                        !slot.assignedIds.includes(s.id) &&
+                        isStudentEligible(s, dateStr, slot.activity, dailyAssignments)
+                    ));
+
+                    if (eligible.length > 0) {
+                        // Pick student who NEEDS this activity name most OR needs a Plantão
+                        // ADDED: Or shares an affinity group with someone already in this slot
+                        eligible.sort((a, b) => {
+                            const statsA = studentStats.find(st => st.id === a.id);
+                            const statsB = studentStats.find(st => st.id === b.id);
+
+                            const needsActA = !statsA.coveredActivities.has(slot.activity.normalizedName);
+                            const needsActB = !statsB.coveredActivities.has(slot.activity.normalizedName);
+                            const needsPlantaoA = isPlantao(slot.activity.type) && !statsA.hasPlantao;
+                            const needsPlantaoB = isPlantao(slot.activity.type) && !statsB.hasPlantao;
+
+                            // Priority 1: Mandatory Activity Coverage
+                            if (needsActA !== needsActB) return needsActA ? -1 : 1;
+
+                            // Priority 2: Mandatory Plantao Coverage
+                            if (needsPlantaoA !== needsPlantaoB) return needsPlantaoA ? -1 : 1;
+
+                            // Priority 3: Preferences (Elevated Priority)
+                            const scoreA = getPreferenceScore(a, dateStr, slot.activity);
+                            const scoreB = getPreferenceScore(b, dateStr, slot.activity);
+                            if (scoreA !== scoreB) return scoreB - scoreA; // Higher score first
+
+                            // Priority 4: Affinity Group (SOFT CONSTRAINT)
+                            if (slot.assignedIds.length > 0) {
+                                const groupInSlot = studentStats.filter(st => slot.assignedIds.includes(st.id)).map(st => st.affinityGroup);
+                                const sharesA = statsA.affinityGroup && groupInSlot.includes(statsA.affinityGroup);
+                                const sharesB = statsB.affinityGroup && groupInSlot.includes(statsB.affinityGroup);
+                                if (sharesA !== sharesB) return sharesA ? -1 : 1;
+                            }
+
+                            // Priority 5: Overshoot fit - prefer students whose remaining hour deficit absorbs this slot
+                            const overA = Math.max(0, slot.activity.hoursCount - Math.max(0, statsA.requiredHours - statsA.totalHours));
+                            const overB = Math.max(0, slot.activity.hoursCount - Math.max(0, statsB.requiredHours - statsB.totalHours));
+                            if (overA !== overB) return overA - overB;
+
+                            // Priority 6: Hours Balance (ties keep the pre-shuffled random order — sort is stable)
+                            return statsA.totalHours - statsB.totalHours;
+                        });
+
+                        const chosen = eligible[0];
+                        const stats = studentStats.find(st => st.id === chosen.id);
+
+                        slot.assignedIds.push(chosen.id);
+                        stats.totalHours += slot.activity.hoursCount;
+                        stats.coveredActivities.add(slot.activity.normalizedName);
+                        if (isPlantao(slot.activity.type)) stats.hasPlantao = true;
+
+                        dailyAssignments[dateStr].push({
+                            studentId: chosen.id,
+                            startTime: slot.activity.startTime,
+                            endTime: slot.activity.endTime,
+                            type: slot.activity.type
+                        });
+                    } else {
+                        // Diagnostic tracking for failures
+                        let rejectedException = 0;
+                        let rejectedOverlap = 0;
+                        let rejectedBackToBack = 0;
+                        students.forEach(s => {
+                            if (hasException(s, dateStr, slot.activity)) rejectedException++;
+                            else if (hasOverlap(s, dateStr, slot.activity, dailyAssignments[dateStr])) rejectedOverlap++;
+                            else if (isPlantao(slot.activity.type) && hasPlantaoOnAdjacentDay(s.id, dateStr, dailyAssignments)) rejectedBackToBack++;
+                        });
+
+                        if (slot.assignedIds.length === 0) {
+                            slot.diagnostics = `Não foi possível preencher. ${rejectedException} exceções, ${rejectedOverlap} sobreposições, ${rejectedBackToBack} plantões seguidos.`;
+                        } else {
+                            slot.diagnostics = `Mínimo de ${targetMin} não atingido (atribuídos: ${slot.assignedIds.length}).`;
+                        }
+                        break;
+                    }
+                }
+            });
+
+            const fillSlotToTarget = (slot, limit) => {
+                const dateStr = slot.dateStr;
+                while (slot.assignedIds.length < limit) {
+                    const eligible = shuffleArray(students.filter(s =>
+                        !slot.assignedIds.includes(s.id) &&
+                        isStudentEligible(s, dateStr, slot.activity, dailyAssignments)
+                    ));
+
+                    // Only take students who still need hours OR still need this activity/plantao for coverage
+                    const needingHoursOrCoverage = eligible.filter(s => {
+                        const stats = studentStats.find(st => st.id === s.id);
+                        const needsAct = !stats.coveredActivities.has(slot.activity.normalizedName);
+                        const needsPlantao = isPlantao(slot.activity.type) && !stats.hasPlantao;
+                        return stats.totalHours < stats.requiredHours || needsAct || needsPlantao;
+                    });
+
+                    if (needingHoursOrCoverage.length === 0) break;
+
+                    // Prioritize Coverage then Preferences then Affinity
+                    needingHoursOrCoverage.sort((a, b) => {
+                        const statsA = studentStats.find(st => st.id === a.id);
+                        const statsB = studentStats.find(st => st.id === b.id);
+
+                        const needsActA = !statsA.coveredActivities.has(slot.activity.normalizedName);
+                        const needsActB = !statsB.coveredActivities.has(slot.activity.normalizedName);
+                        const needsPlantaoA = isPlantao(slot.activity.type) && !statsA.hasPlantao;
+                        const needsPlantaoB = isPlantao(slot.activity.type) && !statsB.hasPlantao;
+
+                        if (needsActA !== needsActB) return needsActA ? -1 : 1;
+                        if (needsPlantaoA !== needsPlantaoB) return needsPlantaoA ? -1 : 1;
+
+                        // Priority 3: Preferences
+                        const scoreA = getPreferenceScore(a, dateStr, slot.activity);
+                        const scoreB = getPreferenceScore(b, dateStr, slot.activity);
+                        if (scoreA !== scoreB) return scoreB - scoreA;
+
+                        // Priority 4: Affinity Group (SOFT CONSTRAINT)
+                        if (slot.assignedIds.length > 0) {
+                            const groupInSlot = studentStats.filter(st => slot.assignedIds.includes(st.id)).map(st => st.affinityGroup);
+                            const sharesA = statsA.affinityGroup && groupInSlot.includes(statsA.affinityGroup);
+                            const sharesB = statsB.affinityGroup && groupInSlot.includes(statsB.affinityGroup);
+                            if (sharesA !== sharesB) return sharesA ? -1 : 1;
+                        }
+
+                        // Priority 5: Overshoot fit - prefer students whose remaining hour deficit absorbs this slot
+                        const overA = Math.max(0, slot.activity.hoursCount - Math.max(0, statsA.requiredHours - statsA.totalHours));
+                        const overB = Math.max(0, slot.activity.hoursCount - Math.max(0, statsB.requiredHours - statsB.totalHours));
+                        if (overA !== overB) return overA - overB;
+
+                        return statsA.totalHours - statsB.totalHours;
+                    });
+
+                    const chosen = needingHoursOrCoverage[0];
+                    const stats = studentStats.find(st => st.id === chosen.id);
+                    slot.assignedIds.push(chosen.id);
+                    stats.totalHours += slot.activity.hoursCount;
+                    stats.coveredActivities.add(slot.activity.normalizedName);
+                    if (isPlantao(slot.activity.type)) stats.hasPlantao = true;
+
+                    dailyAssignments[dateStr].push({
+                        studentId: chosen.id,
+                        startTime: slot.activity.startTime,
+                        endTime: slot.activity.endTime,
+                        type: slot.activity.type
+                    });
+                }
+            };
+
+            // 3. Global Phase 2: Targeted Staffing (Fill up to the MEDIUM point)
+            const phase2Order = shuffleArray([...allSlots]);
+            phase2Order.forEach(slot => {
+                const min = slot.activity.minStudents ?? 1;
+                const max = slot.activity.studentsCount;
+                const ideal = Math.ceil((min + max) / 2);
+                fillSlotToTarget(slot, ideal);
+            });
+
+            // 4. Global Phase 3: Final Staffing (Fill up to MAX if students still need hours/coverage)
+            const phase3Order = shuffleArray([...allSlots]);
+            phase3Order.forEach(slot => {
+                fillSlotToTarget(slot, slot.activity.studentsCount);
+            });
+
+            // 5. Format for UI
+            const finalSchedule = [];
+            const slotsByDate = {};
+            allSlots.forEach(slot => {
+                if (!slotsByDate[slot.dateStr]) slotsByDate[slot.dateStr] = { date: slot.dateStr, dayName: slot.dayName, slots: [] };
+                slotsByDate[slot.dateStr].slots.push({
+                    activity: slot.activity,
+                    assigned: slot.assignedIds.map(id => students.find(s => s.id === id).name),
+                    capacityString: `${slot.assignedIds.length}/${slot.activity.studentsCount}`,
+                    diagnostics: slot.diagnostics
+                });
+            });
+
+            Object.keys(slotsByDate).sort().forEach(d => {
+                const dayGroup = slotsByDate[d];
+                dayGroup.slots.sort((a, b) => a.activity.startTime.localeCompare(b.activity.startTime));
+                finalSchedule.push(dayGroup);
+            });
+
+            return { finalSchedule, studentStats };
+        }
+
+        function calculateScore({ finalSchedule, studentStats }) {
+            let emptyCount = 0;
+            let understaffedPenalty = 0;
+            let coveragePenalty = 0;
+            let preferenceBonus = 0;
+            let affinityBonus = 0;
+            let distributionPenalty = 0;
+
+            finalSchedule.forEach(day => {
+                day.slots.forEach(slot => {
+                    const assigned = slot.assigned.length;
+                    const min = slot.activity.minStudents ?? 1;
+                    const max = slot.activity.studentsCount;
+                    const ideal = Math.ceil((min + max) / 2);
+
+                    if (assigned === 0) {
+                        if (min > 0) emptyCount++;
+                    } else if (assigned < min) {
+                        understaffedPenalty += (min - assigned);
+                    }
+
+                    // Distribution Penalty: Favor being close to the medium
+                    if (assigned > 0) {
+                        distributionPenalty += Math.abs(assigned - ideal) * 10;
+                    }
+
+                    // Preference Bonus and Affinity Reward
+                    if (assigned > 0) {
+                        const studentObjs = slot.assigned.map(name => students.find(s => s.name === name));
+
+                        // Preference Bonus
+                        studentObjs.forEach(s => {
+                            const pScore = s ? getPreferenceScore(s, day.date, slot.activity) : 0;
+                            if (pScore > 0) {
+                                preferenceBonus += (pScore * 100); // 100 for date, 200 for duration, 300 for 12h-12h
+                            }
+                        });
+
+                        // Affinity Reward
+                        if (assigned > 1) {
+                            for (let i = 0; i < studentObjs.length; i++) {
+                                for (let j = i + 1; j < studentObjs.length; j++) {
+                                    const s1 = studentObjs[i];
+                                    const s2 = studentObjs[j];
+                                    if (s1 && s2 && s1.affinityGroup && s1.affinityGroup === s2.affinityGroup) {
+                                        affinityBonus += 100; // Bonus for each pairing (kept moderate: the post-generation swap pass maximizes affinity without touching hours balance)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            });
+
+            // Calculate student-specific coverage penalties
+            let hoursShortfall = 0;
+            studentStats.forEach(stat => {
+                // Penalty for missing mandatory activities
+                const missingCount = mandatoryActivities.length - stat.coveredActivities.size;
+                coveragePenalty += (missingCount * 10);
+
+                // Penalty for missing Plantao
+                if (!stat.hasPlantao) coveragePenalty += 100;
+
+                // Penalty for finishing below the required hours target
+                hoursShortfall += Math.max(0, stat.requiredHours - stat.totalHours);
+            });
+
+            // Calculate variance in student hours (lower is more balanced)
+            const hours = studentStats.map(s => s.totalHours);
+            const avg = hours.reduce((a, b) => a + b, 0) / hours.length;
+            const variance = hours.reduce((a, b) => a + Math.pow(b - avg, 2), 0) / hours.length;
+
+            // Score: Higher weights for critical requirements, subtract bonuses
+            return (emptyCount * 1000000) +
+                   (understaffedPenalty * 100000) +
+                   (coveragePenalty * 1000) +
+                   (hoursShortfall * 200) +
+                   distributionPenalty +
+                   (variance * 400) - affinityBonus - preferenceBonus;
+        }
+
+        function optimizeAffinitySwaps(finalSchedule) {
+            const nameToStudent = {};
+            students.forEach(s => { nameToStudent[s.name] = s; });
+            const dayByDate = {};
+            finalSchedule.forEach(day => { dayByDate[day.date] = day; });
+
+            // Group slot instances by activity (same id = same weekly activity, hours and times)
+            const byActivity = {};
+            finalSchedule.forEach(day => {
+                day.slots.forEach(slot => {
+                    (byActivity[slot.activity.id] ||= []).push({ date: day.date, slot });
+                });
+            });
+
+            const slotAffinityPairs = (names) => {
+                let pairs = 0;
+                for (let i = 0; i < names.length; i++) {
+                    for (let j = i + 1; j < names.length; j++) {
+                        const g1 = nameToStudent[names[i]] && nameToStudent[names[i]].affinityGroup;
+                        const g2 = nameToStudent[names[j]] && nameToStudent[names[j]].affinityGroup;
+                        if (g1 && g1 === g2) pairs++;
+                    }
+                }
+                return pairs;
+            };
+
+            // Can `name` take `activity` on `date`, ignoring the two slots being swapped?
+            const canPlace = (name, date, activity, ignoredSlots) => {
+                const student = nameToStudent[name];
+                if (student && hasException(student, date, activity)) return false;
+
+                const day = dayByDate[date];
+                if (day && day.slots.some(s =>
+                    !ignoredSlots.includes(s) && s.assigned.includes(name) &&
+                    checkOverlap(s.activity.startTime, s.activity.endTime, activity.startTime, activity.endTime))) {
+                    return false;
+                }
+
+                if (isPlantao(activity.type)) {
+                    for (const offset of [-1, 0, 1]) {
+                        const adjDay = dayByDate[getAdjacentDateStr(date, offset)];
+                        if (adjDay && adjDay.slots.some(s =>
+                            !ignoredSlots.includes(s) && isPlantao(s.activity.type) && s.assigned.includes(name))) {
+                            return false;
+                        }
+                    }
+                }
+                return true;
+            };
+
+            let improved = true;
+            let passes = 0;
+            while (improved && passes < 5) {
+                improved = false;
+                passes++;
+
+                Object.values(byActivity).forEach(instances => {
+                    for (let a = 0; a < instances.length; a++) {
+                        for (let b = a + 1; b < instances.length; b++) {
+                            const instA = instances[a];
+                            const instB = instances[b];
+                            if (instA.date === instB.date) continue;
+
+                            let swapped = false;
+                            for (const x of [...instA.slot.assigned]) {
+                                if (swapped) break;
+                                // Pinned assignments never move
+                                if (pinnedKeys.has(`${instA.date}|${String(instA.slot.activity.id)}|${x}`)) continue;
+                                for (const y of [...instB.slot.assigned]) {
+                                    if (pinnedKeys.has(`${instB.date}|${String(instB.slot.activity.id)}|${y}`)) continue;
+                                    if (x === y || instA.slot.assigned.includes(y) || instB.slot.assigned.includes(x)) continue;
+
+                                    const newA = instA.slot.assigned.map(n => n === x ? y : n);
+                                    const newB = instB.slot.assigned.map(n => n === y ? x : n);
+                                    const affinityGain = (slotAffinityPairs(newA) + slotAffinityPairs(newB)) -
+                                        (slotAffinityPairs(instA.slot.assigned) + slotAffinityPairs(instB.slot.assigned));
+
+                                    // Don't trade away personal date preferences for affinity
+                                    const prefDelta =
+                                        (getPreferenceScore(nameToStudent[y] || {}, instA.date, instA.slot.activity) +
+                                         getPreferenceScore(nameToStudent[x] || {}, instB.date, instB.slot.activity)) -
+                                        (getPreferenceScore(nameToStudent[x] || {}, instA.date, instA.slot.activity) +
+                                         getPreferenceScore(nameToStudent[y] || {}, instB.date, instB.slot.activity));
+
+                                    if (affinityGain * 5 + prefDelta <= 0) continue;
+
+                                    const ignored = [instA.slot, instB.slot];
+                                    if (!canPlace(x, instB.date, instB.slot.activity, ignored)) continue;
+                                    if (!canPlace(y, instA.date, instA.slot.activity, ignored)) continue;
+
+                                    instA.slot.assigned = newA;
+                                    instB.slot.assigned = newB;
+                                    improved = true;
+                                    swapped = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        // --- Multi-Pass Logic (Monte Carlo: keep the best of ATTEMPTS runs) ---
+        let bestResult = null;
+        let bestScore = Infinity;
+
+        const ATTEMPTS = 200;
+        for (let i = 0; i < ATTEMPTS; i++) {
+            const currentAttempt = runSingleAttempt();
+            const currentScore = calculateScore(currentAttempt);
+
+            if (currentScore < bestScore) {
+                bestScore = currentScore;
+                bestResult = currentAttempt;
+                if (bestScore === 0) break;
+            }
+            if (onProgress && (i + 1) % 20 === 0) onProgress(i + 1, ATTEMPTS);
+        }
+
+        // Post-optimization: swap students between instances of the same activity on different
+        // dates to keep affinity groups together. Hours, coverage and plantão counts stay identical.
+        optimizeAffinitySwaps(bestResult.finalSchedule);
+
+        return { ...bestResult, mandatoryActivities, feasibility, pinWarnings };
+    }
+
+    return {
+        generate,
+        analyzeFeasibility,
+        calculateMandatoryActivities,
+        buildPotentialSlots,
+        toLocalDateStr,
+        formatDateBR,
+        shuffleArray,
+        getAdjacentDateStr,
+        isPlantao,
+        normalizeActivityName,
+        checkOverlap,
+        hasException,
+        getPreferenceScore
+    };
+}
+
+const SchedulerCore = createSchedulerCore();
+const {
+    isPlantao, normalizeActivityName, toLocalDateStr, formatDateBR,
+    getAdjacentDateStr, hasException, checkOverlap, calculateMandatoryActivities
+} = SchedulerCore;
+
 document.addEventListener('DOMContentLoaded', () => {
     const activityForm = document.getElementById('activity-form');
     const activitiesContainer = document.getElementById('activities-container');
@@ -27,6 +784,11 @@ document.addEventListener('DOMContentLoaded', () => {
         startDate: '',
         endDate: '',
         requiredHours: 0
+    };
+
+    const DAY_TRANSLATIONS = {
+        'Monday': 'Segunda-feira', 'Tuesday': 'Terça-feira', 'Wednesday': 'Quarta-feira',
+        'Thursday': 'Quinta-feira', 'Friday': 'Sexta-feira', 'Saturday': 'Sábado', 'Sunday': 'Domingo'
     };
 
     const STUDENT_COLORS = [
@@ -545,16 +1307,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
             }
 
-            const dayTranslations = {
-                'Monday': 'Segunda-feira', 'Tuesday': 'Terça-feira', 'Wednesday': 'Quarta-feira',
-                'Thursday': 'Quinta-feira', 'Friday': 'Sexta-feira', 'Saturday': 'Sábado', 'Sunday': 'Domingo'
-            };
-
             card.innerHTML = `
                 <div class="activity-info">
                     <h3>${activity.name} <span class="type-badge">${activity.type || 'PLANTÃO'}</span></h3>
                     <div class="activity-details">
-                        <span><strong>Dia:</strong> ${dayTranslations[activity.day]}</span>
+                        <span><strong>Dia:</strong> ${DAY_TRANSLATIONS[activity.day]}</span>
                         <span><strong>Horário:</strong> ${activity.startTime} - ${activity.endTime}</span>
                         <span><strong>Local:</strong> ${activity.location}</span>
                         <span><strong>Alunos:</strong> ${activity.minStudents ?? 1}-${activity.studentsCount}</span>
@@ -716,8 +1473,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const calendarOutput = document.getElementById('calendar-output');
     const statisticsOutput = document.getElementById('statistics-output');
     const printBtn = document.getElementById('print-btn');
+    const studentViewOutput = document.getElementById('student-view-output');
+    const viewToggleBtn = document.getElementById('view-toggle-btn');
+    const exportCsvBtn = document.getElementById('export-csv-btn');
+    const clearPinsBtn = document.getElementById('clear-pins-btn');
 
     let lastGeneratedSchedule = null;
+    let currentView = 'calendar'; // 'calendar' | 'student'
+
+    // Atribuições fixadas (📌): sobrevivem à re-geração da escala
+    let pinnedAssignments = [];
+    try {
+        pinnedAssignments = JSON.parse(localStorage.getItem('med_rotations_pins')) || [];
+    } catch (e) {
+        pinnedAssignments = [];
+    }
 
     if (printBtn) {
         printBtn.addEventListener('click', () => {
@@ -729,6 +1499,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (generateBtn) {
+        const generateBtnDefaultLabel = generateBtn.textContent;
         generateBtn.addEventListener('click', () => {
             if (!rotationConfig.startDate || !rotationConfig.endDate) {
                 alert('Por favor, defina as datas de início e término primeiro.');
@@ -739,10 +1510,42 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            const scheduleData = generateSchedule();
-            lastGeneratedSchedule = scheduleData;
-            renderGeneratedResults(scheduleData);
-            renderCalendarView(scheduleData.finalSchedule);
+            // Pre-generation feasibility check (cheap; no schedule required)
+            const feasibility = SchedulerCore.analyzeFeasibility(activities, students, rotationConfig);
+            renderHealthIssues(feasibility, [], null);
+            if (feasibility.errors.length > 0) {
+                const proceed = confirm(
+                    'A verificação prévia encontrou problemas:\n\n- ' +
+                    feasibility.errors.join('\n- ') +
+                    '\n\nDeseja gerar a escala mesmo assim?'
+                );
+                if (!proceed) return;
+            }
+
+            generateBtn.disabled = true;
+            generateBtn.textContent = 'Gerando escala...';
+
+            const input = JSON.parse(JSON.stringify({
+                activities,
+                students,
+                config: rotationConfig,
+                pins: pinnedAssignments
+            }));
+
+            runGeneration(input)
+                .then(scheduleData => {
+                    lastGeneratedSchedule = scheduleData;
+                    renderGeneratedResults(scheduleData);
+                    renderCalendarView(scheduleData.finalSchedule);
+                    renderStudentView(scheduleData.finalSchedule);
+                })
+                .catch(err => {
+                    alert('Erro ao gerar a escala: ' + err.message);
+                })
+                .finally(() => {
+                    generateBtn.disabled = false;
+                    generateBtn.textContent = generateBtnDefaultLabel;
+                });
         });
     }
 
@@ -843,7 +1646,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         const assignedHtml = slot.assigned.map(name => {
                             const student = students.find(s => s.name === name);
                             const color = student ? student.color : '#ccc';
-                            const studentSpan = `<span class="calendar-student-tag" draggable="true" data-name="${name}" data-date="${dateStr}" data-activity-id="${slot.activity.id}"><span class="color-dot" style="background-color: ${color}"></span>${name}</span>`;
+                            const pinned = isPinned(dateStr, slot.activity.id, name);
+                            const pinTitle = pinned ? 'Desafixar (voltar a ser realocável)' : 'Fixar aluno nesta atividade';
+                            const studentSpan = `<span class="calendar-student-tag${pinned ? ' pinned' : ''}" draggable="true" data-name="${name}" data-date="${dateStr}" data-activity-id="${slot.activity.id}"><span class="color-dot" style="background-color: ${color}"></span>${name}<span class="pin-toggle" title="${pinTitle}">📌</span></span>`;
                             return studentSpan;
                         }).join('');
 
@@ -866,6 +1671,14 @@ document.addEventListener('DOMContentLoaded', () => {
                             tag.addEventListener('dragend', () => {
                                 tag.classList.remove('dragging');
                             });
+
+                            const pinToggle = tag.querySelector('.pin-toggle');
+                            if (pinToggle) {
+                                pinToggle.addEventListener('click', (e) => {
+                                    e.stopPropagation();
+                                    togglePin(tag.getAttribute('data-date'), tag.getAttribute('data-activity-id'), tag.getAttribute('data-name'));
+                                });
+                            }
                         });
 
                         eventsCont.appendChild(eventEl);
@@ -1032,11 +1845,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     sourceSlot.capacityString = `${sourceSlot.assigned.length}/${sourceSlot.activity.studentsCount}`;
                 }
             }
+            removePin(sourceDate, sourceActivityId, studentName);
         }
-        
-        // 4. Perform addition to target
+
+        // 4. Perform addition to target (manual moves are pinned so re-generation preserves them)
         targetSlot.assigned.push(studentName);
         targetSlot.capacityString = `${targetSlot.assigned.length}/${targetSlot.activity.studentsCount}`;
+        addPin(targetDate, targetActivityId, studentName);
 
         // 5. Update Math (Recalculate all student stats)
         recalculateAllStats();
@@ -1044,6 +1859,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // 6. Re-render UI
         renderGeneratedResults(lastGeneratedSchedule);
         renderCalendarView(lastGeneratedSchedule.finalSchedule);
+        renderStudentView(lastGeneratedSchedule.finalSchedule);
     }
 
     function handleStudentUnassignment(studentName, sourceDate, sourceActivityId) {
@@ -1058,10 +1874,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (confirm(`Deseja remover ${studentName} da atividade ${sourceSlot.activity.name}?`)) {
             sourceSlot.assigned = sourceSlot.assigned.filter(n => n !== studentName);
             sourceSlot.capacityString = `${sourceSlot.assigned.length}/${sourceSlot.activity.studentsCount}`;
-            
+            removePin(sourceDate, sourceActivityId, studentName);
+
             recalculateAllStats();
             renderGeneratedResults(lastGeneratedSchedule);
             renderCalendarView(lastGeneratedSchedule.finalSchedule);
+            renderStudentView(lastGeneratedSchedule.finalSchedule);
         }
     }
 
@@ -1102,646 +1920,366 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function isPlantao(type) {
-        if (!type) return true; // Default to true for missing types (backward compatibility)
-        return type.toUpperCase()
-            .normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, "")
-            .trim() === 'PLANTAO';
-    }
+    // --- Ponte com o núcleo do algoritmo (roda em Web Worker quando disponível) ---
 
-    function normalizeActivityName(name) {
-        if (!name) return "";
-        return name.toUpperCase()
-            .normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, "") // Remove accents
-            .replace(/[^A-Z0-9 ]/g, "")      // Remove special chars
-            .trim();
-    }
-
-    function calculateMandatoryActivities(acts, config) {
-        if (!config.startDate || !config.endDate) return [];
-        
-        const start = new Date(config.startDate + 'T00:00:00');
-        const end = new Date(config.endDate + 'T00:00:00');
-        const uniqueNames = new Set();
-        
-        let current = new Date(start);
-        while (current <= end) {
-            const dateStr = toLocalDateStr(current);
-            const dayName = current.toLocaleDateString('en-US', { weekday: 'long' });
-            
-            acts.forEach(a => {
-                if (a.day === dayName && (!a.exceptions || !a.exceptions.includes(dateStr))) {
-                    uniqueNames.add(normalizeActivityName(a.name));
+    function normalizeScheduleResult(result) {
+        if (result && Array.isArray(result.studentStats)) {
+            result.studentStats.forEach(st => {
+                if (!(st.coveredActivities instanceof Set)) {
+                    st.coveredActivities = new Set(st.coveredActivities || []);
                 }
             });
-            current.setDate(current.getDate() + 1);
         }
-        return Array.from(uniqueNames);
+        return result;
     }
 
-    function generateSchedule() {
-        const startDate = new Date(rotationConfig.startDate + 'T00:00:00');
-        const endDate = new Date(rotationConfig.endDate + 'T00:00:00');
-        const dateArray = [];
-        
-        let currentDate = new Date(startDate);
-        while (currentDate <= endDate) {
-            dateArray.push(new Date(currentDate));
-            currentDate.setDate(currentDate.getDate() + 1);
-        }
-
-        // --- Global Health Check ---
-        let totalMinimumActivityHours = 0;
-        const allPotentialSlots = [];
-        const uniqueActivityNames = new Set();
-
-        dateArray.forEach(date => {
-            const dateStr = toLocalDateStr(date);
-            const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
-            activities.forEach(a => {
-                if (a.day === dayName && (!a.exceptions || !a.exceptions.includes(dateStr))) {
-                    totalMinimumActivityHours += a.hoursCount * (a.minStudents ?? 1);
-                    allPotentialSlots.push({
-                        dateStr,
-                        dayName,
-                        activity: { ...a, normalizedName: normalizeActivityName(a.name) }
-                    });
+    function runGeneration(input) {
+        return new Promise((resolve, reject) => {
+            const fallback = () => {
+                try {
+                    resolve(normalizeScheduleResult(SchedulerCore.generate(input)));
+                } catch (err) {
+                    reject(err);
                 }
-            });
+            };
+
+            let url = null;
+            let worker = null;
+            try {
+                const workerCode =
+                    `const core = (${createSchedulerCore.toString()})();\n` +
+                    'self.onmessage = (e) => {\n' +
+                    '    try {\n' +
+                    '        const input = e.data;\n' +
+                    '        input.onProgress = (done, total) => self.postMessage({ type: "progress", done, total });\n' +
+                    '        const result = core.generate(input);\n' +
+                    '        self.postMessage({ type: "done", result });\n' +
+                    '    } catch (err) {\n' +
+                    '        self.postMessage({ type: "error", message: String((err && err.message) || err) });\n' +
+                    '    }\n' +
+                    '};';
+                url = URL.createObjectURL(new Blob([workerCode], { type: 'application/javascript' }));
+                worker = new Worker(url);
+            } catch (e) {
+                // Worker unavailable (e.g. file:// restrictions) — generate synchronously
+                if (url) URL.revokeObjectURL(url);
+                fallback();
+                return;
+            }
+
+            const cleanup = () => {
+                URL.revokeObjectURL(url);
+                worker.terminate();
+            };
+            worker.onmessage = (e) => {
+                const msg = e.data || {};
+                if (msg.type === 'progress') {
+                    generateBtn.textContent = `Gerando escala... ${Math.round((msg.done / msg.total) * 100)}%`;
+                    return;
+                }
+                cleanup();
+                if (msg.type === 'done') resolve(normalizeScheduleResult(msg.result));
+                else reject(new Error(msg.message || 'Falha na geração da escala.'));
+            };
+            worker.onerror = () => {
+                cleanup();
+                fallback();
+            };
+            worker.postMessage(input);
         });
-
-        const mandatoryActivities = calculateMandatoryActivities(activities, rotationConfig);
-        const avgHoursRequired = totalMinimumActivityHours / students.length;
-        let healthWarning = null;
-        if (avgHoursRequired > rotationConfig.requiredHours) {
-            healthWarning = `<strong>Aviso de Saúde da Escala:</strong> Sua meta é ${rotationConfig.requiredHours}h por aluno. 
-                Para garantir que nenhuma atividade fique vazia, os alunos devem ter uma média de pelo menos <strong>${avgHoursRequired.toFixed(1)}h</strong>.`;
-        }
-
-        // --- Multi-Pass Logic ---
-        let bestResult = null;
-        let bestScore = Infinity;
-
-        const ATTEMPTS = 200;
-        for (let i = 0; i < ATTEMPTS; i++) {
-            const currentAttempt = runSingleAttempt(allPotentialSlots, mandatoryActivities);
-            const currentScore = calculateScore(currentAttempt, mandatoryActivities);
-
-            if (currentScore < bestScore) {
-                bestScore = currentScore;
-                bestResult = currentAttempt;
-                if (bestScore === 0) break;
-            }
-        }
-
-        // Post-optimization: swap students between instances of the same activity on different
-        // dates to keep affinity groups together. Hours, coverage and plantão counts stay identical.
-        optimizeAffinitySwaps(bestResult.finalSchedule);
-
-        return { ...bestResult, healthWarning, mandatoryActivities };
     }
 
-    function optimizeAffinitySwaps(finalSchedule) {
-        const nameToStudent = {};
-        students.forEach(s => { nameToStudent[s.name] = s; });
-        const dayByDate = {};
-        finalSchedule.forEach(day => { dayByDate[day.date] = day; });
-
-        // Group slot instances by activity (same id = same weekly activity, hours and times)
-        const byActivity = {};
-        finalSchedule.forEach(day => {
-            day.slots.forEach(slot => {
-                (byActivity[slot.activity.id] ||= []).push({ date: day.date, slot });
-            });
-        });
-
-        const slotAffinityPairs = (names) => {
-            let pairs = 0;
-            for (let i = 0; i < names.length; i++) {
-                for (let j = i + 1; j < names.length; j++) {
-                    const g1 = nameToStudent[names[i]] && nameToStudent[names[i]].affinityGroup;
-                    const g2 = nameToStudent[names[j]] && nameToStudent[names[j]].affinityGroup;
-                    if (g1 && g1 === g2) pairs++;
-                }
-            }
-            return pairs;
-        };
-
-        // Can `name` take `activity` on `date`, ignoring the two slots being swapped?
-        const canPlace = (name, date, activity, ignoredSlots) => {
-            const student = nameToStudent[name];
-            if (student && hasException(student, date, activity)) return false;
-
-            const day = dayByDate[date];
-            if (day && day.slots.some(s =>
-                !ignoredSlots.includes(s) && s.assigned.includes(name) &&
-                checkOverlap(s.activity.startTime, s.activity.endTime, activity.startTime, activity.endTime))) {
-                return false;
-            }
-
-            if (isPlantao(activity.type)) {
-                for (const offset of [-1, 0, 1]) {
-                    const adjDay = dayByDate[getAdjacentDateStr(date, offset)];
-                    if (adjDay && adjDay.slots.some(s =>
-                        !ignoredSlots.includes(s) && isPlantao(s.activity.type) && s.assigned.includes(name))) {
-                        return false;
-                    }
-                }
-            }
-            return true;
-        };
-
-        let improved = true;
-        let passes = 0;
-        while (improved && passes < 5) {
-            improved = false;
-            passes++;
-
-            Object.values(byActivity).forEach(instances => {
-                for (let a = 0; a < instances.length; a++) {
-                    for (let b = a + 1; b < instances.length; b++) {
-                        const instA = instances[a];
-                        const instB = instances[b];
-                        if (instA.date === instB.date) continue;
-
-                        let swapped = false;
-                        for (const x of [...instA.slot.assigned]) {
-                            if (swapped) break;
-                            for (const y of [...instB.slot.assigned]) {
-                                if (x === y || instA.slot.assigned.includes(y) || instB.slot.assigned.includes(x)) continue;
-
-                                const newA = instA.slot.assigned.map(n => n === x ? y : n);
-                                const newB = instB.slot.assigned.map(n => n === y ? x : n);
-                                const affinityGain = (slotAffinityPairs(newA) + slotAffinityPairs(newB)) -
-                                    (slotAffinityPairs(instA.slot.assigned) + slotAffinityPairs(instB.slot.assigned));
-
-                                // Don't trade away personal date preferences for affinity
-                                const prefDelta =
-                                    (getPreferenceScore(nameToStudent[y] || {}, instA.date, instA.slot.activity) +
-                                     getPreferenceScore(nameToStudent[x] || {}, instB.date, instB.slot.activity)) -
-                                    (getPreferenceScore(nameToStudent[x] || {}, instA.date, instA.slot.activity) +
-                                     getPreferenceScore(nameToStudent[y] || {}, instB.date, instB.slot.activity));
-
-                                if (affinityGain * 5 + prefDelta <= 0) continue;
-
-                                const ignored = [instA.slot, instB.slot];
-                                if (!canPlace(x, instB.date, instB.slot.activity, ignored)) continue;
-                                if (!canPlace(y, instA.date, instA.slot.activity, ignored)) continue;
-
-                                instA.slot.assigned = newA;
-                                instB.slot.assigned = newB;
-                                improved = true;
-                                swapped = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-            });
+    function renderHealthIssues(feasibility, pinWarnings, legacyWarning) {
+        const healthWarningEl = document.getElementById('health-warning');
+        const items = [];
+        if (feasibility) {
+            (feasibility.errors || []).forEach(m => items.push(`<li>⛔ ${m}</li>`));
+            (feasibility.warnings || []).forEach(m => items.push(`<li>⚠️ ${m}</li>`));
         }
+        (pinWarnings || []).forEach(m => items.push(`<li>📌 ${m}</li>`));
+        if (legacyWarning) items.push(`<li>⚠️ ${legacyWarning}</li>`);
+
+        if (items.length === 0) {
+            healthWarningEl.innerHTML = '';
+            healthWarningEl.classList.add('hidden');
+            return;
+        }
+        healthWarningEl.innerHTML = `<strong>Avisos da Escala:</strong><ul>${items.join('')}</ul>`;
+        healthWarningEl.classList.remove('hidden');
     }
 
-    function runSingleAttempt(allPotentialSlots, mandatoryActivities) {
-        const studentStats = students.map(s => ({
-            id: s.id,
-            name: s.name,
-            affinityGroup: s.affinityGroup,
-            totalHours: 0,
-            requiredHours: rotationConfig.requiredHours,
-            coveredActivities: new Set(),
-            hasPlantao: false
-        }));
+    // --- Atribuições fixadas (📌) ---
 
-        // Flatten all instances into individual slots
-        const allSlots = allPotentialSlots.map(s => ({
-            ...s,
-            assignedIds: [],
-            diagnostics: null
-        }));
+    function savePins() {
+        localStorage.setItem('med_rotations_pins', JSON.stringify(pinnedAssignments));
+        updateClearPinsButton();
+    }
 
-        // 1. Calculate Global Scarcity
-        allSlots.forEach(slot => {
-            slot._scarcity = students.filter(student => isStudentEligible(student, slot.dateStr, slot.activity, {})).length;
+    function isPinned(date, activityId, studentName) {
+        return pinnedAssignments.some(p =>
+            p.date === date && String(p.activityId) === String(activityId) && p.studentName === studentName);
+    }
+
+    function addPin(date, activityId, studentName) {
+        if (isPinned(date, activityId, studentName)) return;
+        const student = students.find(s => s.name === studentName);
+        pinnedAssignments.push({
+            date,
+            activityId,
+            studentId: student ? student.id : null,
+            studentName
         });
+        savePins();
+    }
 
-        // 2. Global Phase 1: Minimum Staffing (Guarantee MINIMUM people per activity)
-        // Shuffle first (random tie-break for Monte Carlo), then stable-sort by scarcity (hardest first)
-        const phase1Order = shuffleArray([...allSlots]).sort((a, b) => a._scarcity - b._scarcity);
-        const dailyAssignments = {}; // { dateStr: [ {studentId, start, end} ] }
+    function removePin(date, activityId, studentName) {
+        const before = pinnedAssignments.length;
+        pinnedAssignments = pinnedAssignments.filter(p =>
+            !(p.date === date && String(p.activityId) === String(activityId) && p.studentName === studentName));
+        if (pinnedAssignments.length !== before) savePins();
+    }
 
-        phase1Order.forEach(slot => {
-            const dateStr = slot.dateStr;
-            if (!dailyAssignments[dateStr]) dailyAssignments[dateStr] = [];
+    function togglePin(date, activityId, studentName) {
+        if (isPinned(date, activityId, studentName)) removePin(date, activityId, studentName);
+        else addPin(date, activityId, studentName);
+        if (lastGeneratedSchedule) renderCalendarView(lastGeneratedSchedule.finalSchedule);
+    }
 
-            const targetMin = slot.activity.minStudents ?? 1;
+    function updateClearPinsButton() {
+        if (!clearPinsBtn) return;
+        clearPinsBtn.textContent = `Limpar Fixados (${pinnedAssignments.length})`;
+        clearPinsBtn.classList.toggle('hidden', pinnedAssignments.length === 0);
+    }
 
-            while (slot.assignedIds.length < targetMin) {
-                const eligible = shuffleArray(students.filter(s =>
-                    !slot.assignedIds.includes(s.id) &&
-                    isStudentEligible(s, dateStr, slot.activity, dailyAssignments)
-                ));
+    if (clearPinsBtn) {
+        clearPinsBtn.addEventListener('click', () => {
+            if (pinnedAssignments.length === 0) return;
+            if (!confirm(`Remover as ${pinnedAssignments.length} atribuições fixadas? Elas voltarão a ser realocáveis na próxima geração.`)) return;
+            pinnedAssignments = [];
+            savePins();
+            if (lastGeneratedSchedule) renderCalendarView(lastGeneratedSchedule.finalSchedule);
+        });
+    }
+    updateClearPinsButton();
 
-                if (eligible.length > 0) {
-                    // Pick student who NEEDS this activity name most OR needs a Plantão
-                    // ADDED: Or shares an affinity group with someone already in this slot
-                    eligible.sort((a, b) => {
-                        const statsA = studentStats.find(st => st.id === a.id);
-                        const statsB = studentStats.find(st => st.id === b.id);
-                        
-                        const needsActA = !statsA.coveredActivities.has(slot.activity.normalizedName);
-                        const needsActB = !statsB.coveredActivities.has(slot.activity.normalizedName);
-                        const needsPlantaoA = isPlantao(slot.activity.type) && !statsA.hasPlantao;
-                        const needsPlantaoB = isPlantao(slot.activity.type) && !statsB.hasPlantao;
+    // --- Exportação CSV e visão por aluno ---
 
-                        // Priority 1: Mandatory Activity Coverage
-                        if (needsActA !== needsActB) return needsActA ? -1 : 1;
-                        
-                        // Priority 2: Mandatory Plantao Coverage
-                        if (needsPlantaoA !== needsPlantaoB) return needsPlantaoA ? -1 : 1;
+    function downloadFile(content, mimeType, filename) {
+        const blob = new Blob([content], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
 
-                        // Priority 3: Preferences (Elevated Priority)
-                        const scoreA = getPreferenceScore(a, dateStr, slot.activity);
-                        const scoreB = getPreferenceScore(b, dateStr, slot.activity);
-                        if (scoreA !== scoreB) return scoreB - scoreA; // Higher score first
-
-                        // Priority 4: Affinity Group (SOFT CONSTRAINT)
-                        if (slot.assignedIds.length > 0) {
-                            const groupInSlot = studentStats.filter(st => slot.assignedIds.includes(st.id)).map(st => st.affinityGroup);
-                            const sharesA = statsA.affinityGroup && groupInSlot.includes(statsA.affinityGroup);
-                            const sharesB = statsB.affinityGroup && groupInSlot.includes(statsB.affinityGroup);
-                            if (sharesA !== sharesB) return sharesA ? -1 : 1;
-                        }
-
-                        // Priority 5: Overshoot fit - prefer students whose remaining hour deficit absorbs this slot
-                        const overA = Math.max(0, slot.activity.hoursCount - Math.max(0, statsA.requiredHours - statsA.totalHours));
-                        const overB = Math.max(0, slot.activity.hoursCount - Math.max(0, statsB.requiredHours - statsB.totalHours));
-                        if (overA !== overB) return overA - overB;
-
-                        // Priority 6: Hours Balance (ties keep the pre-shuffled random order — sort is stable)
-                        return statsA.totalHours - statsB.totalHours;
-                    });
-
-                    const chosen = eligible[0];
-                    const stats = studentStats.find(st => st.id === chosen.id);
-                    
-                    slot.assignedIds.push(chosen.id);
-                    stats.totalHours += slot.activity.hoursCount;
-                    stats.coveredActivities.add(slot.activity.normalizedName);
-                    if (isPlantao(slot.activity.type)) stats.hasPlantao = true;
-
-                    dailyAssignments[dateStr].push({ 
-                        studentId: chosen.id, 
-                        startTime: slot.activity.startTime, 
-                        endTime: slot.activity.endTime,
-                        type: slot.activity.type
-                    });
-                } else {
-                    // Diagnostic tracking for failures
-                    let rejectedException = 0;
-                    let rejectedOverlap = 0;
-                    let rejectedBackToBack = 0;
-                    students.forEach(s => {
-                        if (hasException(s, dateStr, slot.activity)) rejectedException++;
-                        else if (hasOverlap(s, dateStr, slot.activity, dailyAssignments[dateStr])) rejectedOverlap++;
-                        else if (isPlantao(slot.activity.type) && hasPlantaoOnAdjacentDay(s.id, dateStr, dailyAssignments)) rejectedBackToBack++;
-                    });
-                    
-                    if (slot.assignedIds.length === 0) {
-                        slot.diagnostics = `Não foi possível preencher. ${rejectedException} exceções, ${rejectedOverlap} sobreposições, ${rejectedBackToBack} plantões seguidos.`;
+    if (exportCsvBtn) {
+        exportCsvBtn.addEventListener('click', () => {
+            if (!lastGeneratedSchedule || !lastGeneratedSchedule.finalSchedule) {
+                alert('Gere uma escala primeiro.');
+                return;
+            }
+            // Semicolon separator + BOM + decimal comma: opens correctly in Excel pt-BR
+            const escapeCsv = (v) => {
+                v = String(v ?? '');
+                return (v.includes(';') || v.includes('"') || v.includes('\n')) ? '"' + v.replace(/"/g, '""') + '"' : v;
+            };
+            const rows = [['Data', 'Dia da Semana', 'Atividade', 'Tipo', 'Início', 'Término', 'Local', 'Horas', 'Aluno', 'Grupo']];
+            lastGeneratedSchedule.finalSchedule.forEach(day => {
+                day.slots.forEach(slot => {
+                    const base = [
+                        formatDateBR(day.date),
+                        DAY_TRANSLATIONS[day.dayName] || day.dayName,
+                        slot.activity.name,
+                        slot.activity.type || 'PLANTÃO',
+                        slot.activity.startTime,
+                        slot.activity.endTime,
+                        slot.activity.location || '',
+                        String(slot.activity.hoursCount ?? '').replace('.', ',')
+                    ];
+                    if (!slot.assigned || slot.assigned.length === 0) {
+                        rows.push([...base, '(vago)', '']);
                     } else {
-                        slot.diagnostics = `Mínimo de ${targetMin} não atingido (atribuídos: ${slot.assignedIds.length}).`;
+                        slot.assigned.forEach(name => {
+                            const student = students.find(s => s.name === name);
+                            rows.push([...base, name, student ? (student.affinityGroup || '') : '']);
+                        });
                     }
-                    break; 
-                }
-            }
-        });
-
-        const fillSlotToTarget = (slot, limit) => {
-            const dateStr = slot.dateStr;
-            while (slot.assignedIds.length < limit) {
-                const eligible = shuffleArray(students.filter(s =>
-                    !slot.assignedIds.includes(s.id) &&
-                    isStudentEligible(s, dateStr, slot.activity, dailyAssignments)
-                ));
-
-                // Only take students who still need hours OR still need this activity/plantao for coverage
-                const needingHoursOrCoverage = eligible.filter(s => {
-                    const stats = studentStats.find(st => st.id === s.id);
-                    const needsAct = !stats.coveredActivities.has(slot.activity.normalizedName);
-                    const needsPlantao = isPlantao(slot.activity.type) && !stats.hasPlantao;
-                    return stats.totalHours < stats.requiredHours || needsAct || needsPlantao;
                 });
-
-                if (needingHoursOrCoverage.length === 0) break;
-
-                // Prioritize Coverage then Preferences then Affinity
-                needingHoursOrCoverage.sort((a, b) => {
-                    const statsA = studentStats.find(st => st.id === a.id);
-                    const statsB = studentStats.find(st => st.id === b.id);
-
-                    const needsActA = !statsA.coveredActivities.has(slot.activity.normalizedName);
-                    const needsActB = !statsB.coveredActivities.has(slot.activity.normalizedName);
-                    const needsPlantaoA = isPlantao(slot.activity.type) && !statsA.hasPlantao;
-                    const needsPlantaoB = isPlantao(slot.activity.type) && !statsB.hasPlantao;
-
-                    if (needsActA !== needsActB) return needsActA ? -1 : 1;
-                    if (needsPlantaoA !== needsPlantaoB) return needsPlantaoA ? -1 : 1;
-
-                    // Priority 3: Preferences
-                    const scoreA = getPreferenceScore(a, dateStr, slot.activity);
-                    const scoreB = getPreferenceScore(b, dateStr, slot.activity);
-                    if (scoreA !== scoreB) return scoreB - scoreA;
-
-                    // Priority 4: Affinity Group (SOFT CONSTRAINT)
-                    if (slot.assignedIds.length > 0) {
-                        const groupInSlot = studentStats.filter(st => slot.assignedIds.includes(st.id)).map(st => st.affinityGroup);
-                        const sharesA = statsA.affinityGroup && groupInSlot.includes(statsA.affinityGroup);
-                        const sharesB = statsB.affinityGroup && groupInSlot.includes(statsB.affinityGroup);
-                        if (sharesA !== sharesB) return sharesA ? -1 : 1;
-                    }
-
-                    // Priority 5: Overshoot fit - prefer students whose remaining hour deficit absorbs this slot
-                    const overA = Math.max(0, slot.activity.hoursCount - Math.max(0, statsA.requiredHours - statsA.totalHours));
-                    const overB = Math.max(0, slot.activity.hoursCount - Math.max(0, statsB.requiredHours - statsB.totalHours));
-                    if (overA !== overB) return overA - overB;
-
-                    return statsA.totalHours - statsB.totalHours;
-                });
-
-                const chosen = needingHoursOrCoverage[0];
-                const stats = studentStats.find(st => st.id === chosen.id);
-                slot.assignedIds.push(chosen.id);
-                stats.totalHours += slot.activity.hoursCount;
-                stats.coveredActivities.add(slot.activity.normalizedName);
-                if (isPlantao(slot.activity.type)) stats.hasPlantao = true;
-
-                dailyAssignments[dateStr].push({ 
-                    studentId: chosen.id, 
-                    startTime: slot.activity.startTime, 
-                    endTime: slot.activity.endTime,
-                    type: slot.activity.type
-                });
-            }
-        };
-
-        // 3. Global Phase 2: Targeted Staffing (Fill up to the MEDIUM point)
-        const phase2Order = shuffleArray([...allSlots]);
-        phase2Order.forEach(slot => {
-            const min = slot.activity.minStudents ?? 1;
-            const max = slot.activity.studentsCount;
-            const ideal = Math.ceil((min + max) / 2);
-            fillSlotToTarget(slot, ideal);
-        });
-
-        // 4. Global Phase 3: Final Staffing (Fill up to MAX if students still need hours/coverage)
-        const phase3Order = shuffleArray([...allSlots]);
-        phase3Order.forEach(slot => {
-            fillSlotToTarget(slot, slot.activity.studentsCount);
-        });
-
-        // 4. Format for UI
-        const finalSchedule = [];
-        const slotsByDate = {};
-        allSlots.forEach(slot => {
-            if (!slotsByDate[slot.dateStr]) slotsByDate[slot.dateStr] = { date: slot.dateStr, dayName: slot.dayName, slots: [] };
-            slotsByDate[slot.dateStr].slots.push({
-                activity: slot.activity,
-                assigned: slot.assignedIds.map(id => students.find(s => s.id === id).name),
-                capacityString: `${slot.assignedIds.length}/${slot.activity.studentsCount}`,
-                diagnostics: slot.diagnostics
             });
-        });
-
-        Object.keys(slotsByDate).sort().forEach(d => {
-            const dayGroup = slotsByDate[d];
-            dayGroup.slots.sort((a, b) => a.activity.startTime.localeCompare(b.activity.startTime));
-            finalSchedule.push(dayGroup);
-        });
-
-        return { finalSchedule, studentStats };
-    }
-
-    // --- Helper Logic for Refactored Algorithm ---
-
-    // Formats a Date to YYYY-MM-DD using local time (toISOString shifts the date near midnight in UTC-negative timezones)
-    function toLocalDateStr(date) {
-        const y = date.getFullYear();
-        const m = String(date.getMonth() + 1).padStart(2, '0');
-        const d = String(date.getDate()).padStart(2, '0');
-        return `${y}-${m}-${d}`;
-    }
-
-    // Unbiased Fisher-Yates shuffle (sort(() => Math.random() - 0.5) is biased and breaks sort's contract)
-    function shuffleArray(arr) {
-        for (let i = arr.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [arr[i], arr[j]] = [arr[j], arr[i]];
-        }
-        return arr;
-    }
-
-    function getAdjacentDateStr(dateStr, offset) {
-        const d = new Date(dateStr + 'T00:00:00');
-        d.setDate(d.getDate() + offset);
-        return toLocalDateStr(d);
-    }
-
-    function hasPlantaoOnAdjacentDay(studentId, dateStr, allDailyAssignments) {
-        if (!allDailyAssignments) return false;
-
-        const checkDay = (offset) => {
-            const adjDate = getAdjacentDateStr(dateStr, offset);
-            const adjAssignments = allDailyAssignments[adjDate];
-            if (!adjAssignments) return false;
-            return adjAssignments.some(as => as.studentId === studentId && isPlantao(as.type));
-        };
-
-        return checkDay(-1) || checkDay(1);
-    }
-
-    function isStudentEligible(student, dateStr, activity, allDailyAssignments) {
-        if (hasException(student, dateStr, activity)) return false;
-        
-        // Same day overlap check
-        const sameDayAssignments = allDailyAssignments[dateStr] || [];
-        if (hasOverlap(student, dateStr, activity, sameDayAssignments)) return false;
-
-        // Rest rule: If this is a plantão, student can't have another plantão on the same day
-        // (even at non-overlapping times) nor on adjacent days
-        if (isPlantao(activity.type)) {
-            const hasPlantaoSameDay = sameDayAssignments.some(as => as.studentId === student.id && isPlantao(as.type));
-            if (hasPlantaoSameDay) return false;
-            if (hasPlantaoOnAdjacentDay(student.id, dateStr, allDailyAssignments)) return false;
-        }
-
-        return true;
-    }
-
-    function hasException(student, dateStr, activity) {
-        if (!student.exceptions) return false;
-        return student.exceptions.some(exc => {
-            if (typeof exc === 'string') return exc === dateStr;
-            if (exc.date !== dateStr) return false;
-            if (!exc.startTime || !exc.endTime) return true;
-            return checkOverlap(exc.startTime, exc.endTime, activity.startTime, activity.endTime);
+            const csv = '\uFEFF' + rows.map(r => r.map(escapeCsv).join(';')).join('\r\n');
+            downloadFile(csv, 'text/csv;charset=utf-8', `escala_${toLocalDateStr(new Date())}.csv`);
         });
     }
 
-    function hasOverlap(student, dateStr, activity, dailyAssignments) {
-        if (!dailyAssignments) return false;
-        return dailyAssignments.some(as => 
-            as.studentId === student.id && 
-            checkOverlap(as.startTime, as.endTime, activity.startTime, activity.endTime)
-        );
-    }
+    function renderStudentView(finalSchedule) {
+        if (!studentViewOutput || !Array.isArray(finalSchedule)) return;
+        studentViewOutput.innerHTML = '';
 
-    function getPreferenceScore(student, dateStr, activity) {
-        if (!student.preferredDates) return 0;
-        
-        const activityDuration = activity.hoursCount || 0;
-        let bestScore = 0;
-
-        student.preferredDates.forEach(pref => {
-            let matches = false;
-            let prefDuration = 0;
-
-            if (typeof pref === 'string') {
-                if (pref === dateStr) matches = true;
-            } else if (pref.date === dateStr) {
-                if (!pref.startTime || !pref.endTime) {
-                    matches = true;
-                } else if (checkOverlap(pref.startTime, pref.endTime, activity.startTime, activity.endTime)) {
-                    matches = true;
-                    // Calculate preference duration in hours
-                    const [h1, m1] = pref.startTime.split(':').map(Number);
-                    const [h2, m2] = pref.endTime.split(':').map(Number);
-                    prefDuration = (h2 + m2/60) - (h1 + m1/60);
-                }
-            }
-
-            if (matches) {
-                let currentScore = 1; // Basic date/overlap match
-                
-                // Extra priority: 12h preference matched with 12h activity (like Plantão)
-                if (prefDuration >= 11.5 && activityDuration >= 11.5) {
-                    currentScore = 3; 
-                } else if (Math.abs(prefDuration - activityDuration) < 1) {
-                    // Good duration match
-                    currentScore = 2;
-                }
-                
-                if (currentScore > bestScore) bestScore = currentScore;
-            }
-        });
-
-        return bestScore;
-    }
-
-    function calculateScore({ finalSchedule, studentStats }, mandatoryActivities) {
-        let emptyCount = 0;
-        let understaffedPenalty = 0;
-        let coveragePenalty = 0;
-        let preferenceBonus = 0;
-        let affinityBonus = 0;
-        let distributionPenalty = 0;
-
+        const byStudent = {};
+        students.forEach(s => { byStudent[s.name] = []; });
         finalSchedule.forEach(day => {
             day.slots.forEach(slot => {
-                const assigned = slot.assigned.length;
-                const min = slot.activity.minStudents ?? 1;
-                const max = slot.activity.studentsCount;
-                const ideal = Math.ceil((min + max) / 2);
-
-                if (assigned === 0) {
-                    if (min > 0) emptyCount++;
-                } else if (assigned < min) {
-                    understaffedPenalty += (min - assigned);
-                }
-
-                // Distribution Penalty: Favor being close to the medium
-                if (assigned > 0) {
-                    distributionPenalty += Math.abs(assigned - ideal) * 10;
-                }
-
-                // Preference Bonus and Affinity Reward
-                if (assigned > 0) {
-                    const studentObjs = slot.assigned.map(name => students.find(s => s.name === name));
-                    
-                    // Preference Bonus
-                    studentObjs.forEach(s => {
-                        const pScore = s ? getPreferenceScore(s, day.date, slot.activity) : 0;
-                        if (pScore > 0) {
-                            preferenceBonus += (pScore * 100); // 100 for date, 200 for duration, 300 for 12h-12h
-                        }
-                    });
-
-                    // Affinity Reward
-                    if (assigned > 1) {
-                        for (let i = 0; i < studentObjs.length; i++) {
-                            for (let j = i + 1; j < studentObjs.length; j++) {
-                                const s1 = studentObjs[i];
-                                const s2 = studentObjs[j];
-                                if (s1 && s2 && s1.affinityGroup && s1.affinityGroup === s2.affinityGroup) {
-                                    affinityBonus += 100; // Bonus for each pairing (kept moderate: the post-generation swap pass maximizes affinity without touching hours balance)
-                                }
-                            }
-                        }
-                    }
-                }
+                (slot.assigned || []).forEach(name => {
+                    (byStudent[name] ||= []).push({ date: day.date, dayName: day.dayName, activity: slot.activity });
+                });
             });
         });
 
-        // Calculate student-specific coverage penalties
-        let hoursShortfall = 0;
-        studentStats.forEach(stat => {
-            // Penalty for missing mandatory activities
-            const missingCount = mandatoryActivities.length - stat.coveredActivities.size;
-            coveragePenalty += (missingCount * 10);
+        Object.keys(byStudent).sort((a, b) => a.localeCompare(b, 'pt-BR')).forEach(name => {
+            const student = students.find(s => s.name === name);
+            const entries = byStudent[name].sort((a, b) =>
+                a.date === b.date
+                    ? a.activity.startTime.localeCompare(b.activity.startTime)
+                    : a.date.localeCompare(b.date));
+            const totalHours = entries.reduce((sum, e) => sum + (e.activity.hoursCount || 0), 0);
 
-            // Penalty for missing Plantao
-            if (!stat.hasPlantao) coveragePenalty += 100;
+            const card = document.createElement('div');
+            card.className = 'student-agenda-card';
 
-            // Penalty for finishing below the required hours target
-            hoursShortfall += Math.max(0, stat.requiredHours - stat.totalHours);
+            const rowsHtml = entries.map(e => `
+                <tr>
+                    <td>${formatDateBR(e.date)}</td>
+                    <td>${DAY_TRANSLATIONS[e.dayName] || e.dayName}</td>
+                    <td>${e.activity.name}</td>
+                    <td>${e.activity.startTime} - ${e.activity.endTime}</td>
+                    <td>${e.activity.location || ''}</td>
+                    <td>${e.activity.hoursCount}h</td>
+                </tr>`).join('');
+
+            card.innerHTML = `
+                <div class="student-agenda-header">
+                    <span class="color-dot" style="background-color: ${student ? student.color : '#ccc'}"></span>
+                    <h4>${name}</h4>
+                    ${student && student.affinityGroup ? `<span class="affinity-badge">👥 ${student.affinityGroup}</span>` : ''}
+                    <span class="student-agenda-total">${totalHours.toFixed(1)}h / ${rotationConfig.requiredHours || 0}h</span>
+                </div>
+                ${entries.length === 0 ? '<p class="empty-msg">Nenhuma atividade atribuída.</p>' : `
+                <table class="stats-table student-agenda-table">
+                    <thead><tr><th>Data</th><th>Dia</th><th>Atividade</th><th>Horário</th><th>Local</th><th>Horas</th></tr></thead>
+                    <tbody>${rowsHtml}</tbody>
+                </table>`}
+            `;
+            studentViewOutput.appendChild(card);
         });
-
-        // Calculate variance in student hours (lower is more balanced)
-        const hours = studentStats.map(s => s.totalHours);
-        const avg = hours.reduce((a, b) => a + b, 0) / hours.length;
-        const variance = hours.reduce((a, b) => a + Math.pow(b - avg, 2), 0) / hours.length;
-
-        // Score: Higher weights for critical requirements, subtract bonuses
-        return (emptyCount * 1000000) +
-               (understaffedPenalty * 100000) +
-               (coveragePenalty * 1000) +
-               (hoursShortfall * 200) +
-               distributionPenalty +
-               (variance * 400) - affinityBonus - preferenceBonus;
     }
 
-    function checkOverlap(start1, end1, start2, end2) {
-        return (start1 < end2 && start2 < end1);
+    function applyViewMode() {
+        const isStudentView = currentView === 'student';
+        calendarOutput.classList.toggle('hidden', isStudentView);
+        if (studentViewOutput) studentViewOutput.classList.toggle('hidden', !isStudentView);
+        if (viewToggleBtn) viewToggleBtn.textContent = isStudentView ? 'Visão por Calendário' : 'Visão por Aluno';
+    }
+
+    if (viewToggleBtn) {
+        viewToggleBtn.addEventListener('click', () => {
+            if (!lastGeneratedSchedule) {
+                alert('Gere uma escala primeiro.');
+                return;
+            }
+            currentView = currentView === 'calendar' ? 'student' : 'calendar';
+            if (currentView === 'student') renderStudentView(lastGeneratedSchedule.finalSchedule);
+            applyViewMode();
+        });
+    }
+
+    // --- Validação de backup importado ---
+
+    function validateBackupData(data) {
+        const errors = [];
+        const warnings = [];
+        const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+        const TIME_RE = /^\d{2}:\d{2}$/;
+        const VALID_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+        if (!data || typeof data !== 'object' || Array.isArray(data)) {
+            errors.push('O arquivo não tem o formato de um backup deste sistema.');
+            return { errors, warnings };
+        }
+        if (!Array.isArray(data.activities)) errors.push('Campo "activities" ausente ou inválido.');
+        if (!data.config || typeof data.config !== 'object') errors.push('Campo "config" ausente ou inválido.');
+        if (data.students !== undefined && !Array.isArray(data.students)) errors.push('Campo "students" inválido (deveria ser uma lista).');
+        if (errors.length) return { errors, warnings };
+
+        const cfg = data.config;
+        if (cfg.startDate && !DATE_RE.test(cfg.startDate)) errors.push(`Config: data de início inválida ("${cfg.startDate}").`);
+        if (cfg.endDate && !DATE_RE.test(cfg.endDate)) errors.push(`Config: data de término inválida ("${cfg.endDate}").`);
+        if (DATE_RE.test(cfg.startDate || '') && DATE_RE.test(cfg.endDate || '') && cfg.startDate > cfg.endDate) {
+            errors.push('Config: a data de início é posterior à data de término.');
+        }
+        if (cfg.requiredHours != null && (typeof cfg.requiredHours !== 'number' || cfg.requiredHours < 0)) {
+            warnings.push('Config: meta de horas inválida — será tratada como 0.');
+        }
+
+        const activityIds = new Set();
+        data.activities.forEach((a, i) => {
+            const label = `Atividade ${i + 1}` + (a && a.name ? ` ("${a.name}")` : '');
+            if (!a || typeof a !== 'object') {
+                errors.push(`${label}: entrada inválida.`);
+                return;
+            }
+            if (a.id == null) errors.push(`${label}: sem "id".`);
+            else if (activityIds.has(String(a.id))) errors.push(`${label}: "id" duplicado (${a.id}).`);
+            else activityIds.add(String(a.id));
+
+            if (!a.name || !String(a.name).trim()) errors.push(`${label}: sem nome.`);
+            if (!VALID_DAYS.includes(a.day)) errors.push(`${label}: dia da semana inválido ("${a.day}").`);
+            if (!TIME_RE.test(a.startTime || '') || !TIME_RE.test(a.endTime || '')) errors.push(`${label}: horários inválidos.`);
+            else if (a.startTime >= a.endTime) warnings.push(`${label}: o término não é depois do início.`);
+            if (typeof a.hoursCount !== 'number' || a.hoursCount < 0) errors.push(`${label}: carga horária inválida.`);
+            if (!Number.isInteger(a.studentsCount) || a.studentsCount < 1) errors.push(`${label}: número máximo de alunos inválido.`);
+            const min = a.minStudents ?? 1;
+            if (!Number.isInteger(min) || min < 0) errors.push(`${label}: mínimo de alunos inválido.`);
+            else if (Number.isInteger(a.studentsCount) && min > a.studentsCount) errors.push(`${label}: mínimo (${min}) maior que o máximo (${a.studentsCount}).`);
+            if (a.exceptions && (!Array.isArray(a.exceptions) || a.exceptions.some(ex => typeof ex !== 'string' || !DATE_RE.test(ex)))) {
+                warnings.push(`${label}: lista de exceções contém datas inválidas.`);
+            }
+        });
+
+        const studentIds = new Set();
+        const studentNames = new Set();
+        (data.students || []).forEach((s, i) => {
+            const label = `Aluno ${i + 1}` + (s && s.name ? ` ("${s.name}")` : '');
+            if (!s || typeof s !== 'object') {
+                errors.push(`${label}: entrada inválida.`);
+                return;
+            }
+            if (s.id == null) errors.push(`${label}: sem "id".`);
+            else if (studentIds.has(String(s.id))) errors.push(`${label}: "id" duplicado (${s.id}).`);
+            else studentIds.add(String(s.id));
+
+            const trimmedName = s.name && String(s.name).trim();
+            if (!trimmedName) errors.push(`${label}: sem nome.`);
+            else if (studentNames.has(trimmedName)) errors.push(`${label}: nome duplicado — a escala identifica alunos pelo nome.`);
+            else studentNames.add(trimmedName);
+
+            if (s.exceptions && !Array.isArray(s.exceptions)) warnings.push(`${label}: campo de exceções inválido e será ignorado.`);
+            if (s.preferredDates && !Array.isArray(s.preferredDates)) warnings.push(`${label}: campo de preferências inválido e será ignorado.`);
+        });
+
+        if (data.lastGeneratedSchedule && !Array.isArray(data.lastGeneratedSchedule.finalSchedule)) {
+            warnings.push('A escala salva no backup está incompleta e será ignorada.');
+        }
+        if (data.pinnedAssignments !== undefined && !Array.isArray(data.pinnedAssignments)) {
+            warnings.push('Lista de atribuições fixadas inválida e será ignorada.');
+        }
+
+        return { errors, warnings };
     }
 
     function renderGeneratedResults(scheduleData) {
         if (!scheduleData) return;
         
-        const { 
-            finalSchedule = [], 
-            studentStats = [], 
-            healthWarning = null, 
-            mandatoryActivities = [] 
+        const {
+            studentStats = [],
+            mandatoryActivities = []
         } = scheduleData;
 
-        const healthWarningEl = document.getElementById('health-warning');
-        if (healthWarning) {
-            healthWarningEl.innerHTML = healthWarning;
-            healthWarningEl.classList.remove('hidden');
-        } else {
-            healthWarningEl.classList.add('hidden');
-        }
+        // healthWarning (string) vem de backups antigos; feasibility/pinWarnings é o formato atual
+        renderHealthIssues(scheduleData.feasibility, scheduleData.pinWarnings, scheduleData.healthWarning);
 
         resultsContainer.classList.remove('hidden');
         
@@ -1816,20 +2354,12 @@ document.addEventListener('DOMContentLoaded', () => {
             config: rotationConfig,
             activities: activities,
             students: students,
+            pinnedAssignments: pinnedAssignments,
             lastGeneratedSchedule: exportedSchedule
         };
-        
-        const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        
+
         const dateStr = toLocalDateStr(new Date());
-        a.href = url;
-        a.download = `backup_escalas_med_${dateStr}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        downloadFile(JSON.stringify(dataToExport, null, 2), 'application/json', `backup_escalas_med_${dateStr}.json`);
     });
 
     // Import Data (JSON)
@@ -1848,13 +2378,21 @@ document.addEventListener('DOMContentLoaded', () => {
         reader.onload = (event) => {
             try {
                 const importedData = JSON.parse(event.target.result);
-                
-                // Simple validation
-                if (!importedData.activities || !importedData.config) {
-                    throw new Error('Formato de arquivo inválido. Atividades ou configuração ausentes.');
+
+                // Structural validation with clear messages (bad backups used to corrupt state silently)
+                const validation = validateBackupData(importedData);
+                if (validation.errors.length > 0) {
+                    const shown = validation.errors.slice(0, 15);
+                    const extra = validation.errors.length > shown.length ? `\n... e mais ${validation.errors.length - shown.length} erro(s).` : '';
+                    throw new Error('o arquivo contém problemas e não foi importado:\n\n- ' + shown.join('\n- ') + extra);
                 }
 
-                if (confirm('Importar este arquivo substituirá seus dados atuais. Continuar?')) {
+                let confirmMsg = 'Importar este arquivo substituirá seus dados atuais. Continuar?';
+                if (validation.warnings.length > 0) {
+                    confirmMsg = 'Avisos encontrados no arquivo:\n\n- ' + validation.warnings.slice(0, 10).join('\n- ') + '\n\n' + confirmMsg;
+                }
+
+                if (confirm(confirmMsg)) {
                     // Update state
                     activities = importedData.activities;
                     // Ensure all activities have a type (for backward compatibility) and trim names
@@ -1862,11 +2400,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (!a.type) a.type = 'PLANTÃO';
                         if (a.name) a.name = a.name.trim();
                     });
-                    
+
                     // IMPORTANT: Update rotationConfig IMMEDIATELY so it's available for calculations
                     rotationConfig = importedData.config;
                     students = importedData.students || [];
-                    lastGeneratedSchedule = importedData.lastGeneratedSchedule || null;
+                    lastGeneratedSchedule = (importedData.lastGeneratedSchedule && Array.isArray(importedData.lastGeneratedSchedule.finalSchedule))
+                        ? importedData.lastGeneratedSchedule
+                        : null;
+                    pinnedAssignments = Array.isArray(importedData.pinnedAssignments) ? importedData.pinnedAssignments : [];
+                    savePins();
 
                     // Ensure all students have a color and affinity group
                     students.forEach(s => {
@@ -1917,6 +2459,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         recalculateAllStats();
                         renderGeneratedResults(lastGeneratedSchedule);
                         renderCalendarView(lastGeneratedSchedule.finalSchedule);
+                        renderStudentView(lastGeneratedSchedule.finalSchedule);
                     } else {
                         resultsContainer.classList.add('hidden');
                     }
@@ -1939,6 +2482,7 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.removeItem('med_rotations_activities');
             localStorage.removeItem('med_rotations_config');
             localStorage.removeItem('med_rotations_students');
+            localStorage.removeItem('med_rotations_pins');
 
             // Reset state
             activities = [];
@@ -1949,6 +2493,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 requiredHours: 0
             };
             lastGeneratedSchedule = null;
+            pinnedAssignments = [];
+            updateClearPinsButton();
             currentExceptions = [];
             currentStudentExceptions = [];
             currentStudentPreferred = [];
