@@ -786,6 +786,47 @@ document.addEventListener('DOMContentLoaded', () => {
         requiredHours: 0
     };
 
+    // --- Slow page auto-scroll while dragging a student near the viewport edges ---
+    const AUTOSCROLL_EDGE = 90;  // px from top/bottom edge that activates scrolling
+    const AUTOSCROLL_SPEED = 2;  // px per frame (~120px/s) — intentionally slow
+    let autoScrollDir = 0;
+    let autoScrollRaf = null;
+
+    function autoScrollStep() {
+        if (autoScrollDir === 0) {
+            autoScrollRaf = null;
+            return;
+        }
+        window.scrollBy(0, autoScrollDir * AUTOSCROLL_SPEED);
+        autoScrollRaf = requestAnimationFrame(autoScrollStep);
+    }
+
+    function stopAutoScroll() {
+        autoScrollDir = 0;
+    }
+
+    document.addEventListener('dragover', (e) => {
+        if (e.clientY < AUTOSCROLL_EDGE) {
+            autoScrollDir = -1;
+        } else if (e.clientY > window.innerHeight - AUTOSCROLL_EDGE) {
+            autoScrollDir = 1;
+        } else {
+            autoScrollDir = 0;
+        }
+        if (autoScrollDir !== 0 && autoScrollRaf === null) {
+            autoScrollRaf = requestAnimationFrame(autoScrollStep);
+        }
+    });
+
+    document.addEventListener('dragend', stopAutoScroll);
+    document.addEventListener('drop', stopAutoScroll);
+    document.addEventListener('dragleave', (e) => {
+        // Cursor left the window entirely
+        if (e.clientX <= 0 || e.clientY <= 0 || e.clientX >= window.innerWidth || e.clientY >= window.innerHeight) {
+            stopAutoScroll();
+        }
+    });
+
     const DAY_TRANSLATIONS = {
         'Monday': 'Segunda-feira', 'Tuesday': 'Terça-feira', 'Wednesday': 'Quarta-feira',
         'Thursday': 'Quinta-feira', 'Friday': 'Sexta-feira', 'Saturday': 'Sábado', 'Sunday': 'Domingo'
