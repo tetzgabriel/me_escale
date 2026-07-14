@@ -8,11 +8,34 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
-        <h1>Escala de Rodízio</h1>
-        
-        <section class="global-settings">
-            <h2>Período da Escala e Requisitos</h2>
+    <header class="app-header">
+        <div class="app-header-inner">
+            <div class="brand">
+                <span class="brand-icon">🗓️</span>
+                <div>
+                    <h1>Escala de Rodízio</h1>
+                    <p class="brand-subtitle">Monte, organize e gere a escala clínica dos alunos</p>
+                </div>
+            </div>
+            <nav class="quick-nav">
+                <a href="#section-periodo">Período</a>
+                <a href="#section-atividades">Atividades</a>
+                <a href="#section-alunos">Alunos</a>
+                <a href="#section-gerar" class="cta">✨ Gerar Escala</a>
+                <a href="#section-dados">Dados</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="page">
+        <section class="global-settings" id="section-periodo">
+            <div class="section-heading">
+                <span class="step-badge">1</span>
+                <div>
+                    <h2>Período da Escala e Requisitos</h2>
+                    <p class="section-hint">Defina o intervalo de datas e a carga horária exigida por aluno.</p>
+                </div>
+            </div>
             <div class="form-row">
                 <div class="form-group">
                     <label for="rotation-start">Data de Início</label>
@@ -27,161 +50,212 @@
                     <input type="number" id="required-hours" min="0" step="0.5" placeholder="ex: 40">
                 </div>
             </div>
-            <button type="button" id="save-global-dates">Salvar Configurações</button>
+            <button type="button" id="save-global-dates">💾 Salvar Configurações</button>
         </section>
 
-        <p>Insira as atividades clínicas para montar sua escala.</p>
-        
-        <section class="form-section">
-            <form id="activity-form">
-                <div class="form-group">
-                    <label for="day">Dia da Semana</label>
-                    <select id="day" required>
-                        <option value="">Selecione um dia</option>
-                        <option value="Monday">Segunda-feira</option>
-                        <option value="Tuesday">Terça-feira</option>
-                        <option value="Wednesday">Quarta-feira</option>
-                        <option value="Thursday">Quinta-feira</option>
-                        <option value="Friday">Sexta-feira</option>
-                        <option value="Saturday">Sábado</option>
-                        <option value="Sunday">Domingo</option>
-                    </select>
-                </div>
-                
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="start-hour">Hora de Início</label>
-                        <input type="time" id="start-hour" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="end-hour">Hora de Término</label>
-                        <input type="time" id="end-hour" required>
+        <div class="step-block" id="section-atividades">
+            <section class="form-section">
+                <div class="section-heading">
+                    <span class="step-badge">2</span>
+                    <div>
+                        <h2>Atividades Clínicas</h2>
+                        <p class="section-hint">Cadastre os plantões e ambulatórios que vão compor a escala.</p>
                     </div>
                 </div>
-                
-                <div class="form-group">
-                    <label for="activity-name">Nome da Atividade</label>
-                    <input type="text" id="activity-name" placeholder="ex: Pediatria" required>
-                </div>
-                
-                <div class="form-group">
-                    <label for="activity-type">Tipo de Atividade</label>
-                    <select id="activity-type" required>
-                        <option value="PLANTÃO">PLANTÃO</option>
-                        <option value="AMBULATORIO">AMBULATORIO</option>
-                    </select>
-                </div>
-                
-                <div class="form-group">
-                    <label for="location">Local</label>
-                    <input type="text" id="location" placeholder="ex: Hospital Universitário" required>
-                </div>
-                
-                <div class="form-row">
+                <form id="activity-form">
                     <div class="form-group">
-                        <label for="students-number">Número de Alunos (Máx)</label>
-                        <input type="number" id="students-number" min="1" placeholder="ex: 4" required>
+                        <label for="day">Dia da Semana</label>
+                        <select id="day" required>
+                            <option value="">Selecione um dia</option>
+                            <option value="Monday">Segunda-feira</option>
+                            <option value="Tuesday">Terça-feira</option>
+                            <option value="Wednesday">Quarta-feira</option>
+                            <option value="Thursday">Quinta-feira</option>
+                            <option value="Friday">Sexta-feira</option>
+                            <option value="Saturday">Sábado</option>
+                            <option value="Sunday">Domingo</option>
+                        </select>
                     </div>
-                    <div class="form-group">
-                        <label for="min-students-number">Mínimo de Alunos</label>
-                        <input type="number" id="min-students-number" min="0" value="1" placeholder="ex: 1" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="hours-count">Carga Horária</label>
-                        <input type="number" id="hours-count" step="0.5" min="0" placeholder="ex: 4.5" required>
-                    </div>
-                </div>
 
-                <div class="exceptions-section">
-                    <label>Exceções (Dias em que a atividade não ocorrerá)</label>
                     <div class="form-row">
-                        <input type="date" id="exception-date">
-                        <button type="button" id="add-exception-btn" class="secondary-btn">Adicionar Exceção</button>
-                    </div>
-                    <div id="current-exceptions-list" class="tag-container"></div>
-                </div>
-                
-                <button type="submit" id="submit-btn">Adicionar Atividade</button>
-            </form>
-        </section>
-
-        <section class="list-section">
-            <div class="collapsible-header" id="toggle-activities">
-                <h2>Lista de Atividades</h2>
-                <span class="toggle-icon">▶</span>
-            </div>
-            <div id="activities-container" class="collapsible-content hidden">
-                <p class="empty-msg">Nenhuma atividade adicionada ainda.</p>
-            </div>
-        </section>
-
-        <section class="form-section student-section">
-            <h2>Gerenciamento de Alunos</h2>
-            <form id="student-form">
-                <div class="form-group">
-                    <label for="student-name">Nome do Aluno</label>
-                    <input type="text" id="student-name" placeholder="ex: João Silva" required>
-                </div>
-
-                <div class="form-group">
-                    <label for="student-affinity">Grupo de Afinidade</label>
-                    <select id="student-affinity" required>
-                        <option value="A" selected>A</option>
-                        <option value="B">B</option>
-                        <option value="C">C</option>
-                    </select>
-                </div>
-
-                <div class="preferences-section">
-                    <label>Datas e Horários Preferenciais (Horários opcionais, vazio = dia todo)</label>
-                    <div class="form-row time-input-row">
-                        <input type="date" id="student-preferred-date">
-                        <div class="time-range">
-                            <input type="time" id="student-pref-start">
-                            <span>até</span>
-                            <input type="time" id="student-pref-end">
+                        <div class="form-group">
+                            <label for="start-hour">Hora de Início</label>
+                            <input type="time" id="start-hour" required>
                         </div>
-                        <button type="button" id="add-student-preferred-btn" class="secondary-btn preferred-btn">Adicionar Preferência</button>
-                    </div>
-                    <div id="current-student-preferred-list" class="tag-container"></div>
-                </div>
-
-                <div class="exceptions-section">
-                    <label>Exceções e Horários do Aluno (Indisponibilidade, vazio = dia todo)</label>
-                    <div class="form-row time-input-row">
-                        <input type="date" id="student-exception-date">
-                        <div class="time-range">
-                            <input type="time" id="student-exc-start">
-                            <span>até</span>
-                            <input type="time" id="student-exc-end">
+                        <div class="form-group">
+                            <label for="end-hour">Hora de Término</label>
+                            <input type="time" id="end-hour" required>
                         </div>
-                        <button type="button" id="add-student-exception-btn" class="secondary-btn">Adicionar Exceção</button>
                     </div>
-                    <div id="current-student-exceptions-list" class="tag-container"></div>
+
+                    <div class="form-group">
+                        <label for="activity-name">Nome da Atividade</label>
+                        <input type="text" id="activity-name" placeholder="ex: Pediatria" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="activity-type">Tipo de Atividade</label>
+                        <select id="activity-type" required>
+                            <option value="PLANTÃO">PLANTÃO</option>
+                            <option value="AMBULATORIO">AMBULATORIO</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="location">Local</label>
+                        <input type="text" id="location" placeholder="ex: Hospital Universitário" required>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="students-number">Número de Alunos (Máx)</label>
+                            <input type="number" id="students-number" min="1" placeholder="ex: 4" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="min-students-number">Mínimo de Alunos</label>
+                            <input type="number" id="min-students-number" min="0" value="1" placeholder="ex: 1" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="hours-count">Carga Horária</label>
+                            <input type="number" id="hours-count" step="0.5" min="0" placeholder="ex: 4.5" required>
+                        </div>
+                    </div>
+
+                    <div class="exceptions-section">
+                        <label>Exceções (Dias em que a atividade não ocorrerá)</label>
+                        <div class="form-row">
+                            <input type="date" id="exception-date">
+                            <button type="button" id="add-exception-btn" class="secondary-btn">Adicionar Exceção</button>
+                        </div>
+                        <div id="current-exceptions-list" class="tag-container"></div>
+                    </div>
+
+                    <button type="submit" id="submit-btn">➕ Adicionar Atividade</button>
+                </form>
+            </section>
+
+            <section class="list-section">
+                <div class="collapsible-header" id="toggle-activities">
+                    <div class="collapsible-header-title">
+                        <h2>📋 Lista de Atividades</h2>
+                        <span class="count-badge" id="activities-count">0</span>
+                    </div>
+                    <span class="toggle-icon">▶</span>
                 </div>
+                <div id="activities-container" class="collapsible-content hidden">
+                    <p class="empty-msg">Nenhuma atividade adicionada ainda.</p>
+                </div>
+            </section>
+        </div>
 
-                <button type="submit" id="student-submit-btn">Adicionar Aluno</button>
-            </form>
+        <div class="step-block" id="section-alunos">
+            <section class="form-section student-section">
+                <div class="section-heading">
+                    <span class="step-badge">3</span>
+                    <div>
+                        <h2>Gerenciamento de Alunos</h2>
+                        <p class="section-hint">Cadastre os alunos, o grupo de afinidade, preferências e indisponibilidades.</p>
+                    </div>
+                </div>
+                <form id="student-form">
+                    <div class="form-group">
+                        <label for="student-name">Nome do Aluno</label>
+                        <input type="text" id="student-name" placeholder="ex: João Silva" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="student-affinity">Grupo de Afinidade</label>
+                        <select id="student-affinity" required>
+                            <option value="A" selected>A</option>
+                            <option value="B">B</option>
+                            <option value="C">C</option>
+                        </select>
+                    </div>
+
+                    <div class="preferences-section">
+                        <label>Datas e Horários Preferenciais (Horários opcionais, vazio = dia todo)</label>
+                        <div class="form-row time-input-row">
+                            <input type="date" id="student-preferred-date">
+                            <div class="time-range">
+                                <input type="time" id="student-pref-start">
+                                <span>até</span>
+                                <input type="time" id="student-pref-end">
+                            </div>
+                            <button type="button" id="add-student-preferred-btn" class="secondary-btn preferred-btn">Adicionar Preferência</button>
+                        </div>
+                        <div id="current-student-preferred-list" class="tag-container"></div>
+                    </div>
+
+                    <div class="exceptions-section">
+                        <label>Exceções e Horários do Aluno (Indisponibilidade, vazio = dia todo)</label>
+                        <div class="form-row time-input-row">
+                            <input type="date" id="student-exception-date">
+                            <div class="time-range">
+                                <input type="time" id="student-exc-start">
+                                <span>até</span>
+                                <input type="time" id="student-exc-end">
+                            </div>
+                            <button type="button" id="add-student-exception-btn" class="secondary-btn">Adicionar Exceção</button>
+                        </div>
+                        <div id="current-student-exceptions-list" class="tag-container"></div>
+                    </div>
+
+                    <button type="submit" id="student-submit-btn">➕ Adicionar Aluno</button>
+                </form>
+            </section>
+
+            <section class="list-section">
+                <div class="collapsible-header" id="toggle-students">
+                    <div class="collapsible-header-title">
+                        <h2>🎓 Lista de Alunos</h2>
+                        <span class="count-badge" id="students-count">0</span>
+                    </div>
+                    <span class="toggle-icon">▶</span>
+                </div>
+                <div id="students-container" class="collapsible-content hidden">
+                    <p class="empty-msg">Nenhum aluno adicionado ainda.</p>
+                </div>
+            </section>
+        </div>
+
+        <section class="generator-section" id="section-gerar">
+            <div class="section-heading section-heading--center">
+                <span class="step-badge">4</span>
+                <div>
+                    <h2>Gerar Escala de Rodízio</h2>
+                    <p class="section-hint">O algoritmo equilibra horas, respeita exceções e prioriza afinidades e preferências.</p>
+                </div>
+            </div>
+            <button type="button" id="generate-btn">✨ Gerar Escala de Rodízio</button>
+            <div id="health-warning" class="hidden health-alert"></div>
+            <div id="results-container" class="hidden">
+                <div class="results-header">
+                    <h2>Escala Gerada</h2>
+                    <div class="view-controls">
+                        <div class="action-btns">
+                            <button type="button" id="view-toggle-btn" class="secondary-btn">👤 Visão por Aluno</button>
+                            <button type="button" id="export-csv-btn" class="secondary-btn">📊 Exportar CSV (Excel)</button>
+                            <button type="button" id="print-btn" class="secondary-btn">🖨️ Imprimir / PDF</button>
+                            <button type="button" id="clear-pins-btn" class="secondary-btn hidden">Limpar Fixados (0)</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="statistics-output"></div>
+                <div id="calendar-output"></div>
+                <div id="student-view-output" class="hidden"></div>
+            </div>
         </section>
 
-        <section class="list-section">
-            <div class="collapsible-header" id="toggle-students">
-                <h2>Lista de Alunos</h2>
-                <span class="toggle-icon">▶</span>
-            </div>
-            <div id="students-container" class="collapsible-content hidden">
-                <p class="empty-msg">Nenhum aluno adicionado ainda.</p>
-            </div>
-        </section>
-
-        <section class="list-section">
+        <section class="list-section" id="section-regras">
             <div class="collapsible-header" id="toggle-rules">
-                <h2>Regras e Restrições do Algoritmo</h2>
+                <div class="collapsible-header-title">
+                    <h2>📜 Regras e Restrições do Algoritmo</h2>
+                </div>
                 <span class="toggle-icon">▶</span>
             </div>
             <div id="rules-container" class="collapsible-content hidden">
                 <div class="rules-card">
-                    <p style="text-align: left; color: var(--primary-color); margin-bottom: 20px; font-size: 15px;">
+                    <p class="rules-intro">
                         <strong>Como a escala é montada:</strong> O sistema funciona como um "quebra-cabeça" inteligente. Primeiro, ele garante que ninguém fique sem os plantões obrigatórios e respeita todas as suas folgas. Depois, ele preenche as vagas restantes tentando equilibrar as horas entre todos, dando prioridade para quem tem menos carga horária ou para quem marcou aquela data como preferida.
                     </p>
                     <ul class="rules-list">
@@ -201,45 +275,24 @@
             </div>
         </section>
 
-        <section class="generator-section">
-            <button type="button" id="generate-btn">Gerar Escala de Rodízio</button>
-            <div id="health-warning" class="hidden health-alert"></div>
-            <div id="results-container" class="hidden">
-                <div class="results-header">
-                    <h2>Escala Gerada</h2>
-                    <div class="view-controls">
-                        <div class="action-btns">
-                            <button type="button" id="view-toggle-btn" class="secondary-btn">Visão por Aluno</button>
-                            <button type="button" id="export-csv-btn" class="secondary-btn">Exportar CSV (Excel)</button>
-                            <button type="button" id="print-btn" class="secondary-btn">Imprimir / PDF</button>
-                            <button type="button" id="clear-pins-btn" class="secondary-btn hidden">Limpar Fixados (0)</button>
-                        </div>
-                    </div>
-                </div>
-                <div id="statistics-output"></div>
-                <div id="calendar-output"></div>
-                <div id="student-view-output" class="hidden"></div>
-            </div>
-        </section>
-
-        <section class="data-management">
-            <h2>Gerenciamento de Dados</h2>
+        <section class="data-management" id="section-dados">
+            <h2>💾 Gerenciamento de Dados</h2>
             <p class="data-help">Exporte seus dados para salvar um backup ou importe um arquivo de backup anterior (JSON).</p>
             <div class="btn-group">
-                <button type="button" id="export-btn" class="backup-btn export">Exportar JSON (Backup Completo)</button>
-                <button type="button" id="import-btn" class="backup-btn import">Importar JSON (Backup Completo)</button>
-                <button type="button" id="delete-all-btn" class="backup-btn delete">Excluir Todos os Dados</button>
+                <button type="button" id="export-btn" class="backup-btn export">⬇️ Exportar JSON (Backup Completo)</button>
+                <button type="button" id="import-btn" class="backup-btn import">⬆️ Importar JSON (Backup Completo)</button>
+                <button type="button" id="delete-all-btn" class="backup-btn delete">🗑️ Excluir Todos os Dados</button>
                 <input type="file" id="import-file" accept=".json" style="display: none;">
             </div>
         </section>
 
         <footer class="app-footer">
             <p>Desenvolvido por <strong>Gabriel Tetzlaf</strong></p>
-            <p>Dúvidas ou solicitações de novas funcionalidades: <br> 
+            <p>Dúvidas ou solicitações de novas funcionalidades: <br>
                <span>📞 (19) 98207-2351</span> | <span>✉️ <a href="mailto:tetz.gabriel@gmail.com">tetz.gabriel@gmail.com</a></span>
             </p>
         </footer>
-    </div>
+    </main>
 
     <!-- Edit Modal -->
     <div id="edit-modal" class="modal hidden">

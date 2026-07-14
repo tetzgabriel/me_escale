@@ -1123,6 +1123,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderStudents() {
         if (!studentsContainer) return;
 
+        const studentsCountBadge = document.getElementById('students-count');
+        if (studentsCountBadge) studentsCountBadge.textContent = students.length;
+
         if (students.length === 0) {
             studentsContainer.innerHTML = '<p class="empty-msg">Nenhum aluno adicionado ainda.</p>';
             return;
@@ -1170,8 +1173,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </div>
                 <div class="card-actions">
-                    <button class="edit-student-btn edit-btn" data-id="${student.id}">Editar</button>
-                    <button class="delete-student-btn delete-btn" data-id="${student.id}">Excluir</button>
+                    <button class="edit-student-btn edit-btn" data-id="${student.id}">✏️ Editar</button>
+                    <button class="delete-student-btn delete-btn" data-id="${student.id}">🗑️ Excluir</button>
                 </div>
             `;
 
@@ -1245,7 +1248,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div id="modal-pref-list" class="tag-container"></div>
                 </div>
 
-                <button type="submit">Salvar Alterações</button>
+                <button type="submit">💾 Salvar Alterações</button>
             </form>
         `;
 
@@ -1340,6 +1343,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Render function
     function renderActivities() {
+        const activitiesCountBadge = document.getElementById('activities-count');
+        if (activitiesCountBadge) activitiesCountBadge.textContent = activities.length;
+
         if (activities.length === 0) {
             activitiesContainer.innerHTML = '<p class="empty-msg">Nenhuma atividade adicionada ainda.</p>';
             return;
@@ -1386,8 +1392,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     ${exceptionsHtml}
                 </div>
                 <div class="card-actions">
-                    <button class="edit-activity-btn edit-btn" data-id="${activity.id}">Editar</button>
-                    <button class="delete-btn" data-id="${activity.id}">Excluir</button>
+                    <button class="edit-activity-btn edit-btn" data-id="${activity.id}">✏️ Editar</button>
+                    <button class="delete-btn" data-id="${activity.id}">🗑️ Excluir</button>
                 </div>
             `;
 
@@ -1458,7 +1464,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div id="modal-act-exc-list" class="tag-container"></div>
                 </div>
 
-                <button type="submit">Salvar Alterações</button>
+                <button type="submit">💾 Salvar Alterações</button>
             </form>
         `;
 
@@ -1683,8 +1689,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         
                         const eventEl = document.createElement('div');
                         eventEl.className = 'calendar-event';
+                        eventEl.classList.add(isPlantao(slot.activity.type) ? 'type-plantao' : 'type-ambulatorio');
                         if (slot.assigned.length === 0) eventEl.classList.add('empty-slot');
-                        
+
                         // Drop target data
                         eventEl.setAttribute('data-date', dateStr);
                         eventEl.setAttribute('data-activity-id', slot.activity.id);
@@ -2367,12 +2374,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
         studentStats.forEach(stat => {
             const diff = stat.requiredHours - stat.totalHours;
-            const hourStatus = diff <= 0 ? '✅' : '⌛';
-            const plantaoStatus = stat.hasPlantao ? '✅' : '❌';
-            
+            const hourPill = diff <= 0
+                ? `<span class="pill pill-success">✅ ${stat.totalHours.toFixed(1)}h / ${stat.requiredHours}h</span>`
+                : `<span class="pill pill-warning">⌛ ${stat.totalHours.toFixed(1)}h / ${stat.requiredHours}h</span>`;
+            const plantaoPill = stat.hasPlantao
+                ? '<span class="pill pill-success">✅</span>'
+                : '<span class="pill pill-danger">❌</span>';
+
             const coveredCount = stat.coveredActivities.size;
             const totalMandatory = mandatoryActivities.length;
-            const coverageStatus = coveredCount === totalMandatory ? '✅' : `⚠️ ${coveredCount}/${totalMandatory}`;
+            const coveragePill = coveredCount === totalMandatory
+                ? '<span class="pill pill-success">✅ Completo</span>'
+                : `<span class="pill pill-warning">⚠️ ${coveredCount}/${totalMandatory}</span>`;
+
+            const isComplete = diff <= 0 && stat.hasPlantao && coveredCount === totalMandatory;
+            const overallPill = isComplete
+                ? '<span class="pill pill-success">✅ Completo</span>'
+                : '<span class="pill pill-warning">⌛ Pendente</span>';
 
             // Create a tooltip for missing activities
             const missing = mandatoryActivities.filter(m => !stat.coveredActivities.has(m));
@@ -2381,10 +2399,10 @@ document.addEventListener('DOMContentLoaded', () => {
             statsHtml += `
                 <tr>
                     <td>${stat.name}</td>
-                    <td>${hourStatus} ${stat.totalHours.toFixed(1)}h / ${stat.requiredHours}h</td>
-                    <td style="text-align: center">${plantaoStatus}</td>
-                    <td title="${coverageTitle}" style="cursor: help">${coverageStatus}</td>
-                    <td>${diff <= 0 && stat.hasPlantao && coveredCount === totalMandatory ? '✅ Completo' : '⌛ Pendente'}</td>
+                    <td>${hourPill}</td>
+                    <td style="text-align: center">${plantaoPill}</td>
+                    <td title="${coverageTitle}" style="cursor: help">${coveragePill}</td>
+                    <td>${overallPill}</td>
                 </tr>
             `;
         });
