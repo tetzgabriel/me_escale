@@ -261,6 +261,27 @@ function createSchedulerCore() {
         const pins = input.pins || [];
         const onProgress = typeof input.onProgress === 'function' ? input.onProgress : null;
 
+        // Size of each affinity group, used to normalize the affinity bonus below so a 2-person
+        // group fully reuniting is worth as much as a 4-person group fully clustering (see
+        // affinityBonusForSlot / slotAffinityScore).
+        const affinityGroupSizes = {};
+        students.forEach(s => {
+            if (s.affinityGroup) affinityGroupSizes[s.affinityGroup] = (affinityGroupSizes[s.affinityGroup] || 0) + 1;
+        });
+        const pairCount = n => n * (n - 1) / 2;
+        // Bonus for one affinity group appearing `count` times in a single slot: scaled so that
+        // getting the WHOLE group into one slot is worth `base` regardless of group size (a pair
+        // reuniting fully is just as valuable as a foursome fully clustering), with partial overlap
+        // credited proportionally. Without this normalization, pairwise/quadratic counting makes
+        // bigger groups worth exponentially more per slot, so small groups (e.g. a 2-person group)
+        // always lose the competition for slot space to bigger ones and rarely end up together.
+        function affinityBonusForSlot(group, count, base) {
+            if (count < 2) return 0;
+            const groupSize = affinityGroupSizes[group] || count;
+            const maxPairs = pairCount(groupSize) || 1;
+            return base * (pairCount(count) / maxPairs);
+        }
+
         const allPotentialSlots = buildPotentialSlots(activities, config);
         const mandatoryActivities = calculateMandatoryActivities(activities, config);
         const feasibility = analyzeFeasibility(activities, students, config);
@@ -561,17 +582,17 @@ function createSchedulerCore() {
                             }
                         });
 
-                        // Affinity Reward
+                        // Affinity Reward: bonus per group present, normalized by that group's own
+                        // size (see affinityBonusForSlot) so a small group fully reuniting scores as
+                        // well as a big group fully clustering.
                         if (assigned > 1) {
-                            for (let i = 0; i < studentObjs.length; i++) {
-                                for (let j = i + 1; j < studentObjs.length; j++) {
-                                    const s1 = studentObjs[i];
-                                    const s2 = studentObjs[j];
-                                    if (s1 && s2 && s1.affinityGroup && s1.affinityGroup === s2.affinityGroup) {
-                                        affinityBonus += 100; // Bonus for each pairing (kept moderate: the post-generation swap pass maximizes affinity without touching hours balance)
-                                    }
-                                }
-                            }
+                            const countByGroup = {};
+                            studentObjs.forEach(s => {
+                                if (s && s.affinityGroup) countByGroup[s.affinityGroup] = (countByGroup[s.affinityGroup] || 0) + 1;
+                            });
+                            Object.entries(countByGroup).forEach(([group, count]) => {
+                                affinityBonus += affinityBonusForSlot(group, count, 200);
+                            });
                         }
                     }
                 });
@@ -619,16 +640,20 @@ function createSchedulerCore() {
                 });
             });
 
+            // Matches calculateScore's affinityBonusForSlot: normalized by each group's own size, so
+            // a 2-person group reuniting fully is worth exactly as much as a 4-person group fully
+            // clustering, instead of the pairwise/quadratic count that favors bigger groups.
             const slotAffinityPairs = (names) => {
-                let pairs = 0;
-                for (let i = 0; i < names.length; i++) {
-                    for (let j = i + 1; j < names.length; j++) {
-                        const g1 = nameToStudent[names[i]] && nameToStudent[names[i]].affinityGroup;
-                        const g2 = nameToStudent[names[j]] && nameToStudent[names[j]].affinityGroup;
-                        if (g1 && g1 === g2) pairs++;
-                    }
-                }
-                return pairs;
+                const countByGroup = {};
+                names.forEach(name => {
+                    const g = nameToStudent[name] && nameToStudent[name].affinityGroup;
+                    if (g) countByGroup[g] = (countByGroup[g] || 0) + 1;
+                });
+                let score = 0;
+                Object.entries(countByGroup).forEach(([group, count]) => {
+                    score += affinityBonusForSlot(group, count, 5);
+                });
+                return score;
             };
 
             // Can `name` take `activity` on `date`, ignoring the two slots being swapped?
@@ -657,7 +682,7 @@ function createSchedulerCore() {
 
             let improved = true;
             let passes = 0;
-            while (improved && passes < 5) {
+            while (improved && passes < 30) {
                 improved = false;
                 passes++;
 

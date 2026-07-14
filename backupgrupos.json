@@ -1,0 +1,3450 @@
+{
+  "version": 1,
+  "config": {
+    "startDate": "2026-05-19",
+    "endDate": "2026-07-01",
+    "requiredHours": 204
+  },
+  "activities": [
+    {
+      "id": 1778590899769,
+      "day": "Monday",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "name": "Plantão",
+      "location": "Santa Casa",
+      "studentsCount": 1,
+      "hoursCount": 12,
+      "exceptions": [],
+      "type": "PLANTÃO"
+    },
+    {
+      "id": 1778590963486,
+      "day": "Monday",
+      "startTime": "07:00",
+      "endTime": "12:00",
+      "name": "Ortopedia",
+      "location": "CEM",
+      "studentsCount": 4,
+      "hoursCount": 5,
+      "exceptions": [],
+      "type": "AMBULATORIO"
+    },
+    {
+      "id": 1778591059922,
+      "day": "Monday",
+      "startTime": "13:00",
+      "endTime": "17:00",
+      "name": "Ortopedia",
+      "location": "CEM",
+      "studentsCount": 6,
+      "hoursCount": 4,
+      "exceptions": [],
+      "type": "AMBULATORIO"
+    },
+    {
+      "id": 1778591112140,
+      "day": "Monday",
+      "startTime": "13:00",
+      "endTime": "17:00",
+      "name": "Geral",
+      "location": "CEM",
+      "studentsCount": 4,
+      "hoursCount": 4,
+      "exceptions": [],
+      "type": "AMBULATORIO"
+    },
+    {
+      "id": 1778591157121,
+      "day": "Tuesday",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "name": "Plantão",
+      "location": "Santa Casa",
+      "studentsCount": 5,
+      "hoursCount": 12,
+      "exceptions": [],
+      "type": "PLANTÃO"
+    },
+    {
+      "id": 1778591180956,
+      "day": "Tuesday",
+      "startTime": "13:00",
+      "endTime": "17:00",
+      "name": "Urologia",
+      "location": "CEM",
+      "studentsCount": 4,
+      "hoursCount": 4,
+      "exceptions": [],
+      "type": "AMBULATORIO"
+    },
+    {
+      "id": 1778591206672,
+      "day": "Wednesday",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "name": "Plantão",
+      "location": "Santa Casa",
+      "studentsCount": 6,
+      "hoursCount": 12,
+      "exceptions": [],
+      "type": "PLANTÃO"
+    },
+    {
+      "id": 1778591228971,
+      "day": "Wednesday",
+      "startTime": "07:00",
+      "endTime": "12:00",
+      "name": "Dor",
+      "location": "CEM",
+      "studentsCount": 4,
+      "hoursCount": 5,
+      "exceptions": [],
+      "type": "AMBULATORIO"
+    },
+    {
+      "id": 1778591268122,
+      "day": "Wednesday",
+      "startTime": "07:00",
+      "endTime": "12:00",
+      "name": "Ortopedia",
+      "location": "CEM",
+      "studentsCount": 1,
+      "hoursCount": 5,
+      "exceptions": [],
+      "type": "AMBULATORIO"
+    },
+    {
+      "id": 1778591297022,
+      "day": "Wednesday",
+      "startTime": "13:00",
+      "endTime": "17:00",
+      "name": "Vascular",
+      "location": "CEM",
+      "studentsCount": 7,
+      "hoursCount": 4,
+      "exceptions": [],
+      "type": "AMBULATORIO"
+    },
+    {
+      "id": 1778591324123,
+      "day": "Wednesday",
+      "startTime": "13:00",
+      "endTime": "17:00",
+      "name": "Neuro",
+      "location": "CEM",
+      "studentsCount": 3,
+      "hoursCount": 4,
+      "exceptions": [],
+      "type": "AMBULATORIO"
+    },
+    {
+      "id": 1778591364456,
+      "day": "Thursday",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "name": "Plantão",
+      "location": "Santa Casa",
+      "studentsCount": 3,
+      "hoursCount": 12,
+      "exceptions": [],
+      "type": "PLANTÃO"
+    },
+    {
+      "id": 1778591435939,
+      "day": "Thursday",
+      "startTime": "07:00",
+      "endTime": "12:00",
+      "name": "Oftalmo",
+      "location": "CEM",
+      "studentsCount": 3,
+      "hoursCount": 5,
+      "exceptions": [],
+      "type": "AMBULATORIO"
+    },
+    {
+      "id": 1778591463356,
+      "day": "Thursday",
+      "startTime": "07:00",
+      "endTime": "12:00",
+      "name": "Ortopedia",
+      "location": "CEM",
+      "studentsCount": 5,
+      "hoursCount": 5,
+      "exceptions": [],
+      "type": "AMBULATORIO"
+    },
+    {
+      "id": 1778591489023,
+      "day": "Thursday",
+      "startTime": "07:00",
+      "endTime": "12:00",
+      "name": "Otorrino",
+      "location": "CEM",
+      "studentsCount": 3,
+      "hoursCount": 5,
+      "exceptions": [],
+      "type": "AMBULATORIO"
+    },
+    {
+      "id": 1778591871058,
+      "day": "Thursday",
+      "startTime": "13:00",
+      "endTime": "17:00",
+      "name": "Cir",
+      "location": "CEM",
+      "studentsCount": 3,
+      "hoursCount": 4,
+      "exceptions": [],
+      "type": "AMBULATORIO"
+    },
+    {
+      "id": 1778591887190,
+      "day": "Thursday",
+      "startTime": "13:00",
+      "endTime": "17:00",
+      "name": "Otorrino",
+      "location": "CEM",
+      "studentsCount": 5,
+      "hoursCount": 4,
+      "exceptions": [],
+      "type": "AMBULATORIO"
+    },
+    {
+      "id": 1778591907473,
+      "day": "Friday",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "name": "Plantão",
+      "location": "Santa Casa",
+      "studentsCount": 2,
+      "hoursCount": 12,
+      "exceptions": [],
+      "type": "PLANTÃO"
+    },
+    {
+      "id": 1778591925758,
+      "day": "Friday",
+      "startTime": "13:00",
+      "endTime": "17:00",
+      "name": "Urologia",
+      "location": "CEM",
+      "studentsCount": 4,
+      "hoursCount": 4,
+      "exceptions": [],
+      "type": "AMBULATORIO"
+    }
+  ],
+  "students": [
+    {
+      "id": 1778593065515,
+      "name": "Camila",
+      "exceptions": [
+        {
+          "date": "2026-05-19",
+          "startTime": "",
+          "endTime": ""
+        }
+      ],
+      "preferredDates": [],
+      "color": "#e67e22",
+      "affinityGroup": "A"
+    },
+    {
+      "id": 1778593100215,
+      "name": "Raquel",
+      "exceptions": [
+        {
+          "date": "2026-05-22",
+          "startTime": "",
+          "endTime": ""
+        },
+        {
+          "date": "2026-05-19",
+          "startTime": "",
+          "endTime": ""
+        }
+      ],
+      "preferredDates": [],
+      "color": "#2c3e50",
+      "affinityGroup": "B"
+    },
+    {
+      "id": 1778593111832,
+      "name": "Thayrine",
+      "exceptions": [],
+      "preferredDates": [],
+      "color": "#2980b9",
+      "affinityGroup": "C"
+    },
+    {
+      "id": 1778593125798,
+      "name": "Leonardo",
+      "exceptions": [
+        {
+          "date": "2026-06-03",
+          "startTime": "",
+          "endTime": ""
+        }
+      ],
+      "preferredDates": [],
+      "color": "#e67e22",
+      "affinityGroup": "C"
+    },
+    {
+      "id": 1778593203748,
+      "name": "Luisa",
+      "exceptions": [
+        {
+          "date": "2026-05-22",
+          "startTime": "12:00",
+          "endTime": "17:00"
+        },
+        {
+          "date": "2026-06-29",
+          "startTime": "",
+          "endTime": ""
+        }
+      ],
+      "preferredDates": [],
+      "color": "#f39c12",
+      "affinityGroup": "C"
+    },
+    {
+      "id": 1778593210448,
+      "name": "Samuel",
+      "exceptions": [],
+      "preferredDates": [],
+      "color": "#8e44ad",
+      "affinityGroup": "A"
+    },
+    {
+      "id": 1778593213015,
+      "name": "Victor",
+      "exceptions": [],
+      "preferredDates": [],
+      "color": "#34495e",
+      "affinityGroup": "A"
+    },
+    {
+      "id": 1778593215615,
+      "name": "Wendel",
+      "exceptions": [],
+      "preferredDates": [],
+      "color": "#3498db",
+      "affinityGroup": "C"
+    },
+    {
+      "id": 1778593473050,
+      "name": "Lucas",
+      "exceptions": [
+        {
+          "date": "2026-06-03",
+          "startTime": "",
+          "endTime": ""
+        }
+      ],
+      "preferredDates": [
+        {
+          "date": "2026-05-19",
+          "startTime": "07:00",
+          "endTime": "19:00"
+        },
+        {
+          "date": "2026-05-25",
+          "startTime": "07:00",
+          "endTime": "19:00"
+        },
+        {
+          "date": "2026-06-01",
+          "startTime": "07:00",
+          "endTime": "19:00"
+        },
+        {
+          "date": "2026-06-09",
+          "startTime": "07:00",
+          "endTime": "19:00"
+        }
+      ],
+      "color": "#16a085",
+      "affinityGroup": "B"
+    },
+    {
+      "id": 1778621926270,
+      "name": "Nina",
+      "exceptions": [],
+      "preferredDates": [],
+      "color": "#e74c3c",
+      "affinityGroup": "A"
+    }
+  ],
+  "pinnedAssignments": [],
+  "lastGeneratedSchedule": {
+    "finalSchedule": [
+      {
+        "date": "2026-05-19",
+        "dayName": "Tuesday",
+        "slots": [
+          {
+            "activity": {
+              "id": 1778591157121,
+              "day": "Tuesday",
+              "startTime": "07:00",
+              "endTime": "19:00",
+              "name": "Plantão",
+              "location": "Santa Casa",
+              "studentsCount": 5,
+              "hoursCount": 12,
+              "exceptions": [],
+              "type": "PLANTÃO",
+              "normalizedName": "PLANTAO"
+            },
+            "assigned": [
+              "Luisa",
+              "Leonardo",
+              "Wendel"
+            ],
+            "capacityString": "3/5",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591180956,
+              "day": "Tuesday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Urologia",
+              "location": "CEM",
+              "studentsCount": 4,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "UROLOGIA"
+            },
+            "assigned": [
+              "Lucas",
+              "Samuel",
+              "Victor"
+            ],
+            "capacityString": "3/4",
+            "diagnostics": null
+          }
+        ]
+      },
+      {
+        "date": "2026-05-20",
+        "dayName": "Wednesday",
+        "slots": [
+          {
+            "activity": {
+              "id": 1778591206672,
+              "day": "Wednesday",
+              "startTime": "07:00",
+              "endTime": "19:00",
+              "name": "Plantão",
+              "location": "Santa Casa",
+              "studentsCount": 6,
+              "hoursCount": 12,
+              "exceptions": [],
+              "type": "PLANTÃO",
+              "normalizedName": "PLANTAO"
+            },
+            "assigned": [
+              "Camila",
+              "Nina",
+              "Lucas"
+            ],
+            "capacityString": "3/6",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591228971,
+              "day": "Wednesday",
+              "startTime": "07:00",
+              "endTime": "12:00",
+              "name": "Dor",
+              "location": "CEM",
+              "studentsCount": 4,
+              "hoursCount": 5,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "DOR"
+            },
+            "assigned": [
+              "Luisa",
+              "Raquel",
+              "Thayrine",
+              "Leonardo"
+            ],
+            "capacityString": "4/4",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591268122,
+              "day": "Wednesday",
+              "startTime": "07:00",
+              "endTime": "12:00",
+              "name": "Ortopedia",
+              "location": "CEM",
+              "studentsCount": 1,
+              "hoursCount": 5,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "ORTOPEDIA"
+            },
+            "assigned": [
+              "Victor"
+            ],
+            "capacityString": "1/1",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591297022,
+              "day": "Wednesday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Vascular",
+              "location": "CEM",
+              "studentsCount": 7,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "VASCULAR"
+            },
+            "assigned": [
+              "Thayrine",
+              "Leonardo",
+              "Luisa",
+              "Wendel",
+              "Raquel"
+            ],
+            "capacityString": "5/7",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591324123,
+              "day": "Wednesday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Neuro",
+              "location": "CEM",
+              "studentsCount": 3,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "NEURO"
+            },
+            "assigned": [
+              "Samuel",
+              "Victor"
+            ],
+            "capacityString": "2/3",
+            "diagnostics": null
+          }
+        ]
+      },
+      {
+        "date": "2026-05-21",
+        "dayName": "Thursday",
+        "slots": [
+          {
+            "activity": {
+              "id": 1778591364456,
+              "day": "Thursday",
+              "startTime": "07:00",
+              "endTime": "19:00",
+              "name": "Plantão",
+              "location": "Santa Casa",
+              "studentsCount": 3,
+              "hoursCount": 12,
+              "exceptions": [],
+              "type": "PLANTÃO",
+              "normalizedName": "PLANTAO"
+            },
+            "assigned": [
+              "Leonardo",
+              "Wendel"
+            ],
+            "capacityString": "2/3",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591435939,
+              "day": "Thursday",
+              "startTime": "07:00",
+              "endTime": "12:00",
+              "name": "Oftalmo",
+              "location": "CEM",
+              "studentsCount": 3,
+              "hoursCount": 5,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "OFTALMO"
+            },
+            "assigned": [
+              "Luisa",
+              "Raquel",
+              "Samuel"
+            ],
+            "capacityString": "3/3",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591463356,
+              "day": "Thursday",
+              "startTime": "07:00",
+              "endTime": "12:00",
+              "name": "Ortopedia",
+              "location": "CEM",
+              "studentsCount": 5,
+              "hoursCount": 5,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "ORTOPEDIA"
+            },
+            "assigned": [
+              "Lucas",
+              "Thayrine",
+              "Victor"
+            ],
+            "capacityString": "3/5",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591489023,
+              "day": "Thursday",
+              "startTime": "07:00",
+              "endTime": "12:00",
+              "name": "Otorrino",
+              "location": "CEM",
+              "studentsCount": 3,
+              "hoursCount": 5,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "OTORRINO"
+            },
+            "assigned": [
+              "Camila",
+              "Nina"
+            ],
+            "capacityString": "2/3",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591871058,
+              "day": "Thursday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Cir",
+              "location": "CEM",
+              "studentsCount": 3,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "CIR"
+            },
+            "assigned": [
+              "Thayrine",
+              "Luisa",
+              "Lucas"
+            ],
+            "capacityString": "3/3",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591887190,
+              "day": "Thursday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Otorrino",
+              "location": "CEM",
+              "studentsCount": 5,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "OTORRINO"
+            },
+            "assigned": [
+              "Samuel",
+              "Nina",
+              "Camila"
+            ],
+            "capacityString": "3/5",
+            "diagnostics": null
+          }
+        ]
+      },
+      {
+        "date": "2026-05-22",
+        "dayName": "Friday",
+        "slots": [
+          {
+            "activity": {
+              "id": 1778591907473,
+              "day": "Friday",
+              "startTime": "07:00",
+              "endTime": "19:00",
+              "name": "Plantão",
+              "location": "Santa Casa",
+              "studentsCount": 2,
+              "hoursCount": 12,
+              "exceptions": [],
+              "type": "PLANTÃO",
+              "normalizedName": "PLANTAO"
+            },
+            "assigned": [
+              "Samuel",
+              "Lucas"
+            ],
+            "capacityString": "2/2",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591925758,
+              "day": "Friday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Urologia",
+              "location": "CEM",
+              "studentsCount": 4,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "UROLOGIA"
+            },
+            "assigned": [
+              "Camila",
+              "Victor",
+              "Nina",
+              "Thayrine"
+            ],
+            "capacityString": "4/4",
+            "diagnostics": null
+          }
+        ]
+      },
+      {
+        "date": "2026-05-25",
+        "dayName": "Monday",
+        "slots": [
+          {
+            "activity": {
+              "id": 1778590899769,
+              "day": "Monday",
+              "startTime": "07:00",
+              "endTime": "19:00",
+              "name": "Plantão",
+              "location": "Santa Casa",
+              "studentsCount": 1,
+              "hoursCount": 12,
+              "exceptions": [],
+              "type": "PLANTÃO",
+              "normalizedName": "PLANTAO"
+            },
+            "assigned": [
+              "Nina"
+            ],
+            "capacityString": "1/1",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778590963486,
+              "day": "Monday",
+              "startTime": "07:00",
+              "endTime": "12:00",
+              "name": "Ortopedia",
+              "location": "CEM",
+              "studentsCount": 4,
+              "hoursCount": 5,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "ORTOPEDIA"
+            },
+            "assigned": [
+              "Wendel",
+              "Lucas",
+              "Thayrine"
+            ],
+            "capacityString": "3/4",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591059922,
+              "day": "Monday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Ortopedia",
+              "location": "CEM",
+              "studentsCount": 6,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "ORTOPEDIA"
+            },
+            "assigned": [
+              "Lucas",
+              "Raquel",
+              "Victor",
+              "Samuel"
+            ],
+            "capacityString": "4/6",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591112140,
+              "day": "Monday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Geral",
+              "location": "CEM",
+              "studentsCount": 4,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "GERAL"
+            },
+            "assigned": [
+              "Luisa",
+              "Thayrine",
+              "Leonardo"
+            ],
+            "capacityString": "3/4",
+            "diagnostics": null
+          }
+        ]
+      },
+      {
+        "date": "2026-05-26",
+        "dayName": "Tuesday",
+        "slots": [
+          {
+            "activity": {
+              "id": 1778591157121,
+              "day": "Tuesday",
+              "startTime": "07:00",
+              "endTime": "19:00",
+              "name": "Plantão",
+              "location": "Santa Casa",
+              "studentsCount": 5,
+              "hoursCount": 12,
+              "exceptions": [],
+              "type": "PLANTÃO",
+              "normalizedName": "PLANTAO"
+            },
+            "assigned": [
+              "Camila",
+              "Samuel",
+              "Victor"
+            ],
+            "capacityString": "3/5",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591180956,
+              "day": "Tuesday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Urologia",
+              "location": "CEM",
+              "studentsCount": 4,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "UROLOGIA"
+            },
+            "assigned": [
+              "Thayrine",
+              "Luisa",
+              "Wendel"
+            ],
+            "capacityString": "3/4",
+            "diagnostics": null
+          }
+        ]
+      },
+      {
+        "date": "2026-05-27",
+        "dayName": "Wednesday",
+        "slots": [
+          {
+            "activity": {
+              "id": 1778591206672,
+              "day": "Wednesday",
+              "startTime": "07:00",
+              "endTime": "19:00",
+              "name": "Plantão",
+              "location": "Santa Casa",
+              "studentsCount": 6,
+              "hoursCount": 12,
+              "exceptions": [],
+              "type": "PLANTÃO",
+              "normalizedName": "PLANTAO"
+            },
+            "assigned": [
+              "Raquel",
+              "Thayrine",
+              "Luisa",
+              "Leonardo"
+            ],
+            "capacityString": "4/6",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591228971,
+              "day": "Wednesday",
+              "startTime": "07:00",
+              "endTime": "12:00",
+              "name": "Dor",
+              "location": "CEM",
+              "studentsCount": 4,
+              "hoursCount": 5,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "DOR"
+            },
+            "assigned": [
+              "Victor",
+              "Camila",
+              "Lucas",
+              "Nina"
+            ],
+            "capacityString": "4/4",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591268122,
+              "day": "Wednesday",
+              "startTime": "07:00",
+              "endTime": "12:00",
+              "name": "Ortopedia",
+              "location": "CEM",
+              "studentsCount": 1,
+              "hoursCount": 5,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "ORTOPEDIA"
+            },
+            "assigned": [
+              "Samuel"
+            ],
+            "capacityString": "1/1",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591297022,
+              "day": "Wednesday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Vascular",
+              "location": "CEM",
+              "studentsCount": 7,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "VASCULAR"
+            },
+            "assigned": [
+              "Wendel",
+              "Lucas",
+              "Samuel",
+              "Nina"
+            ],
+            "capacityString": "4/7",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591324123,
+              "day": "Wednesday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Neuro",
+              "location": "CEM",
+              "studentsCount": 3,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "NEURO"
+            },
+            "assigned": [
+              "Camila",
+              "Victor"
+            ],
+            "capacityString": "2/3",
+            "diagnostics": null
+          }
+        ]
+      },
+      {
+        "date": "2026-05-28",
+        "dayName": "Thursday",
+        "slots": [
+          {
+            "activity": {
+              "id": 1778591364456,
+              "day": "Thursday",
+              "startTime": "07:00",
+              "endTime": "19:00",
+              "name": "Plantão",
+              "location": "Santa Casa",
+              "studentsCount": 3,
+              "hoursCount": 12,
+              "exceptions": [],
+              "type": "PLANTÃO",
+              "normalizedName": "PLANTAO"
+            },
+            "assigned": [
+              "Wendel",
+              "Camila"
+            ],
+            "capacityString": "2/3",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591435939,
+              "day": "Thursday",
+              "startTime": "07:00",
+              "endTime": "12:00",
+              "name": "Oftalmo",
+              "location": "CEM",
+              "studentsCount": 3,
+              "hoursCount": 5,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "OFTALMO"
+            },
+            "assigned": [
+              "Thayrine",
+              "Nina"
+            ],
+            "capacityString": "2/3",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591463356,
+              "day": "Thursday",
+              "startTime": "07:00",
+              "endTime": "12:00",
+              "name": "Ortopedia",
+              "location": "CEM",
+              "studentsCount": 5,
+              "hoursCount": 5,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "ORTOPEDIA"
+            },
+            "assigned": [
+              "Luisa",
+              "Leonardo",
+              "Lucas"
+            ],
+            "capacityString": "3/5",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591489023,
+              "day": "Thursday",
+              "startTime": "07:00",
+              "endTime": "12:00",
+              "name": "Otorrino",
+              "location": "CEM",
+              "studentsCount": 3,
+              "hoursCount": 5,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "OTORRINO"
+            },
+            "assigned": [
+              "Raquel",
+              "Samuel"
+            ],
+            "capacityString": "2/3",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591871058,
+              "day": "Thursday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Cir",
+              "location": "CEM",
+              "studentsCount": 3,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "CIR"
+            },
+            "assigned": [
+              "Luisa",
+              "Lucas"
+            ],
+            "capacityString": "2/3",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591887190,
+              "day": "Thursday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Otorrino",
+              "location": "CEM",
+              "studentsCount": 5,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "OTORRINO"
+            },
+            "assigned": [
+              "Nina",
+              "Samuel",
+              "Victor",
+              "Thayrine",
+              "Leonardo"
+            ],
+            "capacityString": "5/5",
+            "diagnostics": null
+          }
+        ]
+      },
+      {
+        "date": "2026-05-29",
+        "dayName": "Friday",
+        "slots": [
+          {
+            "activity": {
+              "id": 1778591907473,
+              "day": "Friday",
+              "startTime": "07:00",
+              "endTime": "19:00",
+              "name": "Plantão",
+              "location": "Santa Casa",
+              "studentsCount": 2,
+              "hoursCount": 12,
+              "exceptions": [],
+              "type": "PLANTÃO",
+              "normalizedName": "PLANTAO"
+            },
+            "assigned": [
+              "Victor",
+              "Leonardo"
+            ],
+            "capacityString": "2/2",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591925758,
+              "day": "Friday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Urologia",
+              "location": "CEM",
+              "studentsCount": 4,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "UROLOGIA"
+            },
+            "assigned": [
+              "Nina",
+              "Samuel",
+              "Camila"
+            ],
+            "capacityString": "3/4",
+            "diagnostics": null
+          }
+        ]
+      },
+      {
+        "date": "2026-06-01",
+        "dayName": "Monday",
+        "slots": [
+          {
+            "activity": {
+              "id": 1778590899769,
+              "day": "Monday",
+              "startTime": "07:00",
+              "endTime": "19:00",
+              "name": "Plantão",
+              "location": "Santa Casa",
+              "studentsCount": 1,
+              "hoursCount": 12,
+              "exceptions": [],
+              "type": "PLANTÃO",
+              "normalizedName": "PLANTAO"
+            },
+            "assigned": [
+              "Lucas"
+            ],
+            "capacityString": "1/1",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778590963486,
+              "day": "Monday",
+              "startTime": "07:00",
+              "endTime": "12:00",
+              "name": "Ortopedia",
+              "location": "CEM",
+              "studentsCount": 4,
+              "hoursCount": 5,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "ORTOPEDIA"
+            },
+            "assigned": [
+              "Wendel",
+              "Thayrine",
+              "Leonardo",
+              "Luisa"
+            ],
+            "capacityString": "4/4",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591059922,
+              "day": "Monday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Ortopedia",
+              "location": "CEM",
+              "studentsCount": 6,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "ORTOPEDIA"
+            },
+            "assigned": [
+              "Raquel",
+              "Thayrine",
+              "Leonardo",
+              "Camila",
+              "Nina",
+              "Victor"
+            ],
+            "capacityString": "6/6",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591112140,
+              "day": "Monday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Geral",
+              "location": "CEM",
+              "studentsCount": 4,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "GERAL"
+            },
+            "assigned": [
+              "Wendel",
+              "Samuel",
+              "Luisa"
+            ],
+            "capacityString": "3/4",
+            "diagnostics": null
+          }
+        ]
+      },
+      {
+        "date": "2026-06-02",
+        "dayName": "Tuesday",
+        "slots": [
+          {
+            "activity": {
+              "id": 1778591157121,
+              "day": "Tuesday",
+              "startTime": "07:00",
+              "endTime": "19:00",
+              "name": "Plantão",
+              "location": "Santa Casa",
+              "studentsCount": 5,
+              "hoursCount": 12,
+              "exceptions": [],
+              "type": "PLANTÃO",
+              "normalizedName": "PLANTAO"
+            },
+            "assigned": [
+              "Samuel",
+              "Camila",
+              "Nina",
+              "Raquel"
+            ],
+            "capacityString": "4/5",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591180956,
+              "day": "Tuesday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Urologia",
+              "location": "CEM",
+              "studentsCount": 4,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "UROLOGIA"
+            },
+            "assigned": [
+              "Luisa",
+              "Thayrine",
+              "Leonardo",
+              "Wendel"
+            ],
+            "capacityString": "4/4",
+            "diagnostics": null
+          }
+        ]
+      },
+      {
+        "date": "2026-06-03",
+        "dayName": "Wednesday",
+        "slots": [
+          {
+            "activity": {
+              "id": 1778591206672,
+              "day": "Wednesday",
+              "startTime": "07:00",
+              "endTime": "19:00",
+              "name": "Plantão",
+              "location": "Santa Casa",
+              "studentsCount": 6,
+              "hoursCount": 12,
+              "exceptions": [],
+              "type": "PLANTÃO",
+              "normalizedName": "PLANTAO"
+            },
+            "assigned": [
+              "Wendel"
+            ],
+            "capacityString": "1/6",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591228971,
+              "day": "Wednesday",
+              "startTime": "07:00",
+              "endTime": "12:00",
+              "name": "Dor",
+              "location": "CEM",
+              "studentsCount": 4,
+              "hoursCount": 5,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "DOR"
+            },
+            "assigned": [
+              "Thayrine",
+              "Samuel",
+              "Victor"
+            ],
+            "capacityString": "3/4",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591268122,
+              "day": "Wednesday",
+              "startTime": "07:00",
+              "endTime": "12:00",
+              "name": "Ortopedia",
+              "location": "CEM",
+              "studentsCount": 1,
+              "hoursCount": 5,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "ORTOPEDIA"
+            },
+            "assigned": [
+              "Nina"
+            ],
+            "capacityString": "1/1",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591297022,
+              "day": "Wednesday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Vascular",
+              "location": "CEM",
+              "studentsCount": 7,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "VASCULAR"
+            },
+            "assigned": [
+              "Raquel",
+              "Thayrine",
+              "Luisa",
+              "Camila"
+            ],
+            "capacityString": "4/7",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591324123,
+              "day": "Wednesday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Neuro",
+              "location": "CEM",
+              "studentsCount": 3,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "NEURO"
+            },
+            "assigned": [
+              "Victor",
+              "Nina"
+            ],
+            "capacityString": "2/3",
+            "diagnostics": null
+          }
+        ]
+      },
+      {
+        "date": "2026-06-04",
+        "dayName": "Thursday",
+        "slots": [
+          {
+            "activity": {
+              "id": 1778591364456,
+              "day": "Thursday",
+              "startTime": "07:00",
+              "endTime": "19:00",
+              "name": "Plantão",
+              "location": "Santa Casa",
+              "studentsCount": 3,
+              "hoursCount": 12,
+              "exceptions": [],
+              "type": "PLANTÃO",
+              "normalizedName": "PLANTAO"
+            },
+            "assigned": [
+              "Nina",
+              "Victor"
+            ],
+            "capacityString": "2/3",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591435939,
+              "day": "Thursday",
+              "startTime": "07:00",
+              "endTime": "12:00",
+              "name": "Oftalmo",
+              "location": "CEM",
+              "studentsCount": 3,
+              "hoursCount": 5,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "OFTALMO"
+            },
+            "assigned": [
+              "Lucas",
+              "Raquel"
+            ],
+            "capacityString": "2/3",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591463356,
+              "day": "Thursday",
+              "startTime": "07:00",
+              "endTime": "12:00",
+              "name": "Ortopedia",
+              "location": "CEM",
+              "studentsCount": 5,
+              "hoursCount": 5,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "ORTOPEDIA"
+            },
+            "assigned": [
+              "Camila",
+              "Samuel",
+              "Luisa"
+            ],
+            "capacityString": "3/5",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591489023,
+              "day": "Thursday",
+              "startTime": "07:00",
+              "endTime": "12:00",
+              "name": "Otorrino",
+              "location": "CEM",
+              "studentsCount": 3,
+              "hoursCount": 5,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "OTORRINO"
+            },
+            "assigned": [
+              "Thayrine",
+              "Leonardo"
+            ],
+            "capacityString": "2/3",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591871058,
+              "day": "Thursday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Cir",
+              "location": "CEM",
+              "studentsCount": 3,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "CIR"
+            },
+            "assigned": [
+              "Raquel",
+              "Lucas"
+            ],
+            "capacityString": "2/3",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591887190,
+              "day": "Thursday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Otorrino",
+              "location": "CEM",
+              "studentsCount": 5,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "OTORRINO"
+            },
+            "assigned": [
+              "Leonardo",
+              "Thayrine",
+              "Wendel",
+              "Luisa"
+            ],
+            "capacityString": "4/5",
+            "diagnostics": null
+          }
+        ]
+      },
+      {
+        "date": "2026-06-05",
+        "dayName": "Friday",
+        "slots": [
+          {
+            "activity": {
+              "id": 1778591907473,
+              "day": "Friday",
+              "startTime": "07:00",
+              "endTime": "19:00",
+              "name": "Plantão",
+              "location": "Santa Casa",
+              "studentsCount": 2,
+              "hoursCount": 12,
+              "exceptions": [],
+              "type": "PLANTÃO",
+              "normalizedName": "PLANTAO"
+            },
+            "assigned": [
+              "Lucas",
+              "Raquel"
+            ],
+            "capacityString": "2/2",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591925758,
+              "day": "Friday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Urologia",
+              "location": "CEM",
+              "studentsCount": 4,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "UROLOGIA"
+            },
+            "assigned": [
+              "Wendel",
+              "Luisa",
+              "Thayrine"
+            ],
+            "capacityString": "3/4",
+            "diagnostics": null
+          }
+        ]
+      },
+      {
+        "date": "2026-06-08",
+        "dayName": "Monday",
+        "slots": [
+          {
+            "activity": {
+              "id": 1778590899769,
+              "day": "Monday",
+              "startTime": "07:00",
+              "endTime": "19:00",
+              "name": "Plantão",
+              "location": "Santa Casa",
+              "studentsCount": 1,
+              "hoursCount": 12,
+              "exceptions": [],
+              "type": "PLANTÃO",
+              "normalizedName": "PLANTAO"
+            },
+            "assigned": [
+              "Luisa"
+            ],
+            "capacityString": "1/1",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778590963486,
+              "day": "Monday",
+              "startTime": "07:00",
+              "endTime": "12:00",
+              "name": "Ortopedia",
+              "location": "CEM",
+              "studentsCount": 4,
+              "hoursCount": 5,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "ORTOPEDIA"
+            },
+            "assigned": [
+              "Thayrine",
+              "Leonardo",
+              "Wendel"
+            ],
+            "capacityString": "3/4",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591059922,
+              "day": "Monday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Ortopedia",
+              "location": "CEM",
+              "studentsCount": 6,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "ORTOPEDIA"
+            },
+            "assigned": [
+              "Camila",
+              "Samuel",
+              "Victor",
+              "Nina",
+              "Raquel",
+              "Lucas"
+            ],
+            "capacityString": "6/6",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591112140,
+              "day": "Monday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Geral",
+              "location": "CEM",
+              "studentsCount": 4,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "GERAL"
+            },
+            "assigned": [
+              "Thayrine",
+              "Leonardo",
+              "Wendel"
+            ],
+            "capacityString": "3/4",
+            "diagnostics": null
+          }
+        ]
+      },
+      {
+        "date": "2026-06-09",
+        "dayName": "Tuesday",
+        "slots": [
+          {
+            "activity": {
+              "id": 1778591157121,
+              "day": "Tuesday",
+              "startTime": "07:00",
+              "endTime": "19:00",
+              "name": "Plantão",
+              "location": "Santa Casa",
+              "studentsCount": 5,
+              "hoursCount": 12,
+              "exceptions": [],
+              "type": "PLANTÃO",
+              "normalizedName": "PLANTAO"
+            },
+            "assigned": [
+              "Lucas",
+              "Raquel",
+              "Wendel"
+            ],
+            "capacityString": "3/5",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591180956,
+              "day": "Tuesday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Urologia",
+              "location": "CEM",
+              "studentsCount": 4,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "UROLOGIA"
+            },
+            "assigned": [
+              "Leonardo",
+              "Luisa",
+              "Thayrine"
+            ],
+            "capacityString": "3/4",
+            "diagnostics": null
+          }
+        ]
+      },
+      {
+        "date": "2026-06-10",
+        "dayName": "Wednesday",
+        "slots": [
+          {
+            "activity": {
+              "id": 1778591206672,
+              "day": "Wednesday",
+              "startTime": "07:00",
+              "endTime": "19:00",
+              "name": "Plantão",
+              "location": "Santa Casa",
+              "studentsCount": 6,
+              "hoursCount": 12,
+              "exceptions": [],
+              "type": "PLANTÃO",
+              "normalizedName": "PLANTAO"
+            },
+            "assigned": [
+              "Samuel",
+              "Camila",
+              "Nina"
+            ],
+            "capacityString": "3/6",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591228971,
+              "day": "Wednesday",
+              "startTime": "07:00",
+              "endTime": "12:00",
+              "name": "Dor",
+              "location": "CEM",
+              "studentsCount": 4,
+              "hoursCount": 5,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "DOR"
+            },
+            "assigned": [
+              "Luisa",
+              "Thayrine",
+              "Leonardo",
+              "Raquel"
+            ],
+            "capacityString": "4/4",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591268122,
+              "day": "Wednesday",
+              "startTime": "07:00",
+              "endTime": "12:00",
+              "name": "Ortopedia",
+              "location": "CEM",
+              "studentsCount": 1,
+              "hoursCount": 5,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "ORTOPEDIA"
+            },
+            "assigned": [
+              "Lucas"
+            ],
+            "capacityString": "1/1",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591297022,
+              "day": "Wednesday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Vascular",
+              "location": "CEM",
+              "studentsCount": 7,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "VASCULAR"
+            },
+            "assigned": [
+              "Leonardo",
+              "Lucas",
+              "Raquel",
+              "Luisa"
+            ],
+            "capacityString": "4/7",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591324123,
+              "day": "Wednesday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Neuro",
+              "location": "CEM",
+              "studentsCount": 3,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "NEURO"
+            },
+            "assigned": [
+              "Wendel",
+              "Thayrine"
+            ],
+            "capacityString": "2/3",
+            "diagnostics": null
+          }
+        ]
+      },
+      {
+        "date": "2026-06-11",
+        "dayName": "Thursday",
+        "slots": [
+          {
+            "activity": {
+              "id": 1778591364456,
+              "day": "Thursday",
+              "startTime": "07:00",
+              "endTime": "19:00",
+              "name": "Plantão",
+              "location": "Santa Casa",
+              "studentsCount": 3,
+              "hoursCount": 12,
+              "exceptions": [],
+              "type": "PLANTÃO",
+              "normalizedName": "PLANTAO"
+            },
+            "assigned": [
+              "Victor"
+            ],
+            "capacityString": "1/3",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591435939,
+              "day": "Thursday",
+              "startTime": "07:00",
+              "endTime": "12:00",
+              "name": "Oftalmo",
+              "location": "CEM",
+              "studentsCount": 3,
+              "hoursCount": 5,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "OFTALMO"
+            },
+            "assigned": [
+              "Leonardo",
+              "Thayrine",
+              "Lucas"
+            ],
+            "capacityString": "3/3",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591463356,
+              "day": "Thursday",
+              "startTime": "07:00",
+              "endTime": "12:00",
+              "name": "Ortopedia",
+              "location": "CEM",
+              "studentsCount": 5,
+              "hoursCount": 5,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "ORTOPEDIA"
+            },
+            "assigned": [
+              "Nina",
+              "Camila",
+              "Samuel"
+            ],
+            "capacityString": "3/5",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591489023,
+              "day": "Thursday",
+              "startTime": "07:00",
+              "endTime": "12:00",
+              "name": "Otorrino",
+              "location": "CEM",
+              "studentsCount": 3,
+              "hoursCount": 5,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "OTORRINO"
+            },
+            "assigned": [
+              "Wendel",
+              "Luisa",
+              "Raquel"
+            ],
+            "capacityString": "3/3",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591871058,
+              "day": "Thursday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Cir",
+              "location": "CEM",
+              "studentsCount": 3,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "CIR"
+            },
+            "assigned": [
+              "Raquel",
+              "Nina"
+            ],
+            "capacityString": "2/3",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591887190,
+              "day": "Thursday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Otorrino",
+              "location": "CEM",
+              "studentsCount": 5,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "OTORRINO"
+            },
+            "assigned": [
+              "Thayrine",
+              "Wendel",
+              "Luisa",
+              "Leonardo"
+            ],
+            "capacityString": "4/5",
+            "diagnostics": null
+          }
+        ]
+      },
+      {
+        "date": "2026-06-12",
+        "dayName": "Friday",
+        "slots": [
+          {
+            "activity": {
+              "id": 1778591907473,
+              "day": "Friday",
+              "startTime": "07:00",
+              "endTime": "19:00",
+              "name": "Plantão",
+              "location": "Santa Casa",
+              "studentsCount": 2,
+              "hoursCount": 12,
+              "exceptions": [],
+              "type": "PLANTÃO",
+              "normalizedName": "PLANTAO"
+            },
+            "assigned": [
+              "Raquel",
+              "Lucas"
+            ],
+            "capacityString": "2/2",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591925758,
+              "day": "Friday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Urologia",
+              "location": "CEM",
+              "studentsCount": 4,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "UROLOGIA"
+            },
+            "assigned": [
+              "Victor",
+              "Camila",
+              "Samuel"
+            ],
+            "capacityString": "3/4",
+            "diagnostics": null
+          }
+        ]
+      },
+      {
+        "date": "2026-06-15",
+        "dayName": "Monday",
+        "slots": [
+          {
+            "activity": {
+              "id": 1778590899769,
+              "day": "Monday",
+              "startTime": "07:00",
+              "endTime": "19:00",
+              "name": "Plantão",
+              "location": "Santa Casa",
+              "studentsCount": 1,
+              "hoursCount": 12,
+              "exceptions": [],
+              "type": "PLANTÃO",
+              "normalizedName": "PLANTAO"
+            },
+            "assigned": [
+              "Samuel"
+            ],
+            "capacityString": "1/1",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778590963486,
+              "day": "Monday",
+              "startTime": "07:00",
+              "endTime": "12:00",
+              "name": "Ortopedia",
+              "location": "CEM",
+              "studentsCount": 4,
+              "hoursCount": 5,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "ORTOPEDIA"
+            },
+            "assigned": [
+              "Leonardo",
+              "Thayrine",
+              "Luisa",
+              "Wendel"
+            ],
+            "capacityString": "4/4",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591059922,
+              "day": "Monday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Ortopedia",
+              "location": "CEM",
+              "studentsCount": 6,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "ORTOPEDIA"
+            },
+            "assigned": [
+              "Leonardo",
+              "Luisa",
+              "Thayrine",
+              "Wendel",
+              "Nina",
+              "Victor"
+            ],
+            "capacityString": "6/6",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591112140,
+              "day": "Monday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Geral",
+              "location": "CEM",
+              "studentsCount": 4,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "GERAL"
+            },
+            "assigned": [
+              "Lucas",
+              "Raquel",
+              "Camila"
+            ],
+            "capacityString": "3/4",
+            "diagnostics": null
+          }
+        ]
+      },
+      {
+        "date": "2026-06-16",
+        "dayName": "Tuesday",
+        "slots": [
+          {
+            "activity": {
+              "id": 1778591157121,
+              "day": "Tuesday",
+              "startTime": "07:00",
+              "endTime": "19:00",
+              "name": "Plantão",
+              "location": "Santa Casa",
+              "studentsCount": 5,
+              "hoursCount": 12,
+              "exceptions": [],
+              "type": "PLANTÃO",
+              "normalizedName": "PLANTAO"
+            },
+            "assigned": [
+              "Camila",
+              "Nina",
+              "Victor"
+            ],
+            "capacityString": "3/5",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591180956,
+              "day": "Tuesday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Urologia",
+              "location": "CEM",
+              "studentsCount": 4,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "UROLOGIA"
+            },
+            "assigned": [
+              "Wendel",
+              "Leonardo",
+              "Luisa",
+              "Thayrine"
+            ],
+            "capacityString": "4/4",
+            "diagnostics": null
+          }
+        ]
+      },
+      {
+        "date": "2026-06-17",
+        "dayName": "Wednesday",
+        "slots": [
+          {
+            "activity": {
+              "id": 1778591206672,
+              "day": "Wednesday",
+              "startTime": "07:00",
+              "endTime": "19:00",
+              "name": "Plantão",
+              "location": "Santa Casa",
+              "studentsCount": 6,
+              "hoursCount": 12,
+              "exceptions": [],
+              "type": "PLANTÃO",
+              "normalizedName": "PLANTAO"
+            },
+            "assigned": [
+              "Thayrine",
+              "Raquel",
+              "Samuel"
+            ],
+            "capacityString": "3/6",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591228971,
+              "day": "Wednesday",
+              "startTime": "07:00",
+              "endTime": "12:00",
+              "name": "Dor",
+              "location": "CEM",
+              "studentsCount": 4,
+              "hoursCount": 5,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "DOR"
+            },
+            "assigned": [
+              "Nina",
+              "Victor",
+              "Camila",
+              "Lucas"
+            ],
+            "capacityString": "4/4",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591268122,
+              "day": "Wednesday",
+              "startTime": "07:00",
+              "endTime": "12:00",
+              "name": "Ortopedia",
+              "location": "CEM",
+              "studentsCount": 1,
+              "hoursCount": 5,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "ORTOPEDIA"
+            },
+            "assigned": [
+              "Wendel"
+            ],
+            "capacityString": "1/1",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591297022,
+              "day": "Wednesday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Vascular",
+              "location": "CEM",
+              "studentsCount": 7,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "VASCULAR"
+            },
+            "assigned": [
+              "Victor",
+              "Nina",
+              "Camila",
+              "Lucas"
+            ],
+            "capacityString": "4/7",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591324123,
+              "day": "Wednesday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Neuro",
+              "location": "CEM",
+              "studentsCount": 3,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "NEURO"
+            },
+            "assigned": [
+              "Luisa",
+              "Leonardo"
+            ],
+            "capacityString": "2/3",
+            "diagnostics": null
+          }
+        ]
+      },
+      {
+        "date": "2026-06-18",
+        "dayName": "Thursday",
+        "slots": [
+          {
+            "activity": {
+              "id": 1778591364456,
+              "day": "Thursday",
+              "startTime": "07:00",
+              "endTime": "19:00",
+              "name": "Plantão",
+              "location": "Santa Casa",
+              "studentsCount": 3,
+              "hoursCount": 12,
+              "exceptions": [],
+              "type": "PLANTÃO",
+              "normalizedName": "PLANTAO"
+            },
+            "assigned": [
+              "Lucas",
+              "Nina"
+            ],
+            "capacityString": "2/3",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591435939,
+              "day": "Thursday",
+              "startTime": "07:00",
+              "endTime": "12:00",
+              "name": "Oftalmo",
+              "location": "CEM",
+              "studentsCount": 3,
+              "hoursCount": 5,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "OFTALMO"
+            },
+            "assigned": [
+              "Camila",
+              "Victor"
+            ],
+            "capacityString": "2/3",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591463356,
+              "day": "Thursday",
+              "startTime": "07:00",
+              "endTime": "12:00",
+              "name": "Ortopedia",
+              "location": "CEM",
+              "studentsCount": 5,
+              "hoursCount": 5,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "ORTOPEDIA"
+            },
+            "assigned": [
+              "Thayrine",
+              "Wendel",
+              "Leonardo"
+            ],
+            "capacityString": "3/5",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591489023,
+              "day": "Thursday",
+              "startTime": "07:00",
+              "endTime": "12:00",
+              "name": "Otorrino",
+              "location": "CEM",
+              "studentsCount": 3,
+              "hoursCount": 5,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "OTORRINO"
+            },
+            "assigned": [
+              "Luisa",
+              "Raquel",
+              "Samuel"
+            ],
+            "capacityString": "3/3",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591871058,
+              "day": "Thursday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Cir",
+              "location": "CEM",
+              "studentsCount": 3,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "CIR"
+            },
+            "assigned": [
+              "Leonardo",
+              "Wendel",
+              "Thayrine"
+            ],
+            "capacityString": "3/3",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591887190,
+              "day": "Thursday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Otorrino",
+              "location": "CEM",
+              "studentsCount": 5,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "OTORRINO"
+            },
+            "assigned": [
+              "Victor",
+              "Camila",
+              "Samuel",
+              "Raquel",
+              "Luisa"
+            ],
+            "capacityString": "5/5",
+            "diagnostics": null
+          }
+        ]
+      },
+      {
+        "date": "2026-06-19",
+        "dayName": "Friday",
+        "slots": [
+          {
+            "activity": {
+              "id": 1778591907473,
+              "day": "Friday",
+              "startTime": "07:00",
+              "endTime": "19:00",
+              "name": "Plantão",
+              "location": "Santa Casa",
+              "studentsCount": 2,
+              "hoursCount": 12,
+              "exceptions": [],
+              "type": "PLANTÃO",
+              "normalizedName": "PLANTAO"
+            },
+            "assigned": [
+              "Raquel",
+              "Victor"
+            ],
+            "capacityString": "2/2",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591925758,
+              "day": "Friday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Urologia",
+              "location": "CEM",
+              "studentsCount": 4,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "UROLOGIA"
+            },
+            "assigned": [
+              "Leonardo",
+              "Thayrine",
+              "Wendel",
+              "Luisa"
+            ],
+            "capacityString": "4/4",
+            "diagnostics": null
+          }
+        ]
+      },
+      {
+        "date": "2026-06-22",
+        "dayName": "Monday",
+        "slots": [
+          {
+            "activity": {
+              "id": 1778590899769,
+              "day": "Monday",
+              "startTime": "07:00",
+              "endTime": "19:00",
+              "name": "Plantão",
+              "location": "Santa Casa",
+              "studentsCount": 1,
+              "hoursCount": 12,
+              "exceptions": [],
+              "type": "PLANTÃO",
+              "normalizedName": "PLANTAO"
+            },
+            "assigned": [
+              "Nina"
+            ],
+            "capacityString": "1/1",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778590963486,
+              "day": "Monday",
+              "startTime": "07:00",
+              "endTime": "12:00",
+              "name": "Ortopedia",
+              "location": "CEM",
+              "studentsCount": 4,
+              "hoursCount": 5,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "ORTOPEDIA"
+            },
+            "assigned": [
+              "Samuel",
+              "Victor",
+              "Camila"
+            ],
+            "capacityString": "3/4",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591059922,
+              "day": "Monday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Ortopedia",
+              "location": "CEM",
+              "studentsCount": 6,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "ORTOPEDIA"
+            },
+            "assigned": [
+              "Thayrine",
+              "Luisa",
+              "Wendel",
+              "Camila"
+            ],
+            "capacityString": "4/6",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591112140,
+              "day": "Monday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Geral",
+              "location": "CEM",
+              "studentsCount": 4,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "GERAL"
+            },
+            "assigned": [
+              "Leonardo",
+              "Raquel",
+              "Lucas",
+              "Victor"
+            ],
+            "capacityString": "4/4",
+            "diagnostics": null
+          }
+        ]
+      },
+      {
+        "date": "2026-06-23",
+        "dayName": "Tuesday",
+        "slots": [
+          {
+            "activity": {
+              "id": 1778591157121,
+              "day": "Tuesday",
+              "startTime": "07:00",
+              "endTime": "19:00",
+              "name": "Plantão",
+              "location": "Santa Casa",
+              "studentsCount": 5,
+              "hoursCount": 12,
+              "exceptions": [],
+              "type": "PLANTÃO",
+              "normalizedName": "PLANTAO"
+            },
+            "assigned": [
+              "Luisa",
+              "Leonardo",
+              "Wendel"
+            ],
+            "capacityString": "3/5",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591180956,
+              "day": "Tuesday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Urologia",
+              "location": "CEM",
+              "studentsCount": 4,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "UROLOGIA"
+            },
+            "assigned": [
+              "Raquel",
+              "Lucas",
+              "Thayrine",
+              "Nina"
+            ],
+            "capacityString": "4/4",
+            "diagnostics": null
+          }
+        ]
+      },
+      {
+        "date": "2026-06-24",
+        "dayName": "Wednesday",
+        "slots": [
+          {
+            "activity": {
+              "id": 1778591206672,
+              "day": "Wednesday",
+              "startTime": "07:00",
+              "endTime": "19:00",
+              "name": "Plantão",
+              "location": "Santa Casa",
+              "studentsCount": 6,
+              "hoursCount": 12,
+              "exceptions": [],
+              "type": "PLANTÃO",
+              "normalizedName": "PLANTAO"
+            },
+            "assigned": [
+              "Victor"
+            ],
+            "capacityString": "1/6",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591228971,
+              "day": "Wednesday",
+              "startTime": "07:00",
+              "endTime": "12:00",
+              "name": "Dor",
+              "location": "CEM",
+              "studentsCount": 4,
+              "hoursCount": 5,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "DOR"
+            },
+            "assigned": [
+              "Leonardo",
+              "Thayrine",
+              "Luisa",
+              "Wendel"
+            ],
+            "capacityString": "4/4",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591268122,
+              "day": "Wednesday",
+              "startTime": "07:00",
+              "endTime": "12:00",
+              "name": "Ortopedia",
+              "location": "CEM",
+              "studentsCount": 1,
+              "hoursCount": 5,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "ORTOPEDIA"
+            },
+            "assigned": [
+              "Samuel"
+            ],
+            "capacityString": "1/1",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591297022,
+              "day": "Wednesday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Vascular",
+              "location": "CEM",
+              "studentsCount": 7,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "VASCULAR"
+            },
+            "assigned": [
+              "Nina",
+              "Camila",
+              "Samuel",
+              "Lucas"
+            ],
+            "capacityString": "4/7",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591324123,
+              "day": "Wednesday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Neuro",
+              "location": "CEM",
+              "studentsCount": 3,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "NEURO"
+            },
+            "assigned": [
+              "Thayrine",
+              "Raquel",
+              "Leonardo"
+            ],
+            "capacityString": "3/3",
+            "diagnostics": null
+          }
+        ]
+      },
+      {
+        "date": "2026-06-25",
+        "dayName": "Thursday",
+        "slots": [
+          {
+            "activity": {
+              "id": 1778591364456,
+              "day": "Thursday",
+              "startTime": "07:00",
+              "endTime": "19:00",
+              "name": "Plantão",
+              "location": "Santa Casa",
+              "studentsCount": 3,
+              "hoursCount": 12,
+              "exceptions": [],
+              "type": "PLANTÃO",
+              "normalizedName": "PLANTAO"
+            },
+            "assigned": [
+              "Nina",
+              "Luisa"
+            ],
+            "capacityString": "2/3",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591435939,
+              "day": "Thursday",
+              "startTime": "07:00",
+              "endTime": "12:00",
+              "name": "Oftalmo",
+              "location": "CEM",
+              "studentsCount": 3,
+              "hoursCount": 5,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "OFTALMO"
+            },
+            "assigned": [
+              "Wendel",
+              "Thayrine",
+              "Leonardo"
+            ],
+            "capacityString": "3/3",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591463356,
+              "day": "Thursday",
+              "startTime": "07:00",
+              "endTime": "12:00",
+              "name": "Ortopedia",
+              "location": "CEM",
+              "studentsCount": 5,
+              "hoursCount": 5,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "ORTOPEDIA"
+            },
+            "assigned": [
+              "Victor",
+              "Camila",
+              "Samuel"
+            ],
+            "capacityString": "3/5",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591489023,
+              "day": "Thursday",
+              "startTime": "07:00",
+              "endTime": "12:00",
+              "name": "Otorrino",
+              "location": "CEM",
+              "studentsCount": 3,
+              "hoursCount": 5,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "OTORRINO"
+            },
+            "assigned": [
+              "Lucas",
+              "Raquel"
+            ],
+            "capacityString": "2/3",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591871058,
+              "day": "Thursday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Cir",
+              "location": "CEM",
+              "studentsCount": 3,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "CIR"
+            },
+            "assigned": [
+              "Camila",
+              "Victor",
+              "Samuel"
+            ],
+            "capacityString": "3/3",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591887190,
+              "day": "Thursday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Otorrino",
+              "location": "CEM",
+              "studentsCount": 5,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "OTORRINO"
+            },
+            "assigned": [
+              "Lucas",
+              "Thayrine",
+              "Wendel"
+            ],
+            "capacityString": "3/5",
+            "diagnostics": null
+          }
+        ]
+      },
+      {
+        "date": "2026-06-26",
+        "dayName": "Friday",
+        "slots": [
+          {
+            "activity": {
+              "id": 1778591907473,
+              "day": "Friday",
+              "startTime": "07:00",
+              "endTime": "19:00",
+              "name": "Plantão",
+              "location": "Santa Casa",
+              "studentsCount": 2,
+              "hoursCount": 12,
+              "exceptions": [],
+              "type": "PLANTÃO",
+              "normalizedName": "PLANTAO"
+            },
+            "assigned": [
+              "Camila",
+              "Samuel"
+            ],
+            "capacityString": "2/2",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591925758,
+              "day": "Friday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Urologia",
+              "location": "CEM",
+              "studentsCount": 4,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "UROLOGIA"
+            },
+            "assigned": [
+              "Wendel",
+              "Luisa",
+              "Leonardo",
+              "Thayrine"
+            ],
+            "capacityString": "4/4",
+            "diagnostics": null
+          }
+        ]
+      },
+      {
+        "date": "2026-06-29",
+        "dayName": "Monday",
+        "slots": [
+          {
+            "activity": {
+              "id": 1778590899769,
+              "day": "Monday",
+              "startTime": "07:00",
+              "endTime": "19:00",
+              "name": "Plantão",
+              "location": "Santa Casa",
+              "studentsCount": 1,
+              "hoursCount": 12,
+              "exceptions": [],
+              "type": "PLANTÃO",
+              "normalizedName": "PLANTAO"
+            },
+            "assigned": [
+              "Lucas"
+            ],
+            "capacityString": "1/1",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778590963486,
+              "day": "Monday",
+              "startTime": "07:00",
+              "endTime": "12:00",
+              "name": "Ortopedia",
+              "location": "CEM",
+              "studentsCount": 4,
+              "hoursCount": 5,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "ORTOPEDIA"
+            },
+            "assigned": [
+              "Raquel",
+              "Camila",
+              "Samuel",
+              "Victor"
+            ],
+            "capacityString": "4/4",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591059922,
+              "day": "Monday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Ortopedia",
+              "location": "CEM",
+              "studentsCount": 6,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "ORTOPEDIA"
+            },
+            "assigned": [
+              "Leonardo",
+              "Thayrine",
+              "Wendel",
+              "Raquel"
+            ],
+            "capacityString": "4/6",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591112140,
+              "day": "Monday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Geral",
+              "location": "CEM",
+              "studentsCount": 4,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "GERAL"
+            },
+            "assigned": [
+              "Victor",
+              "Camila",
+              "Nina"
+            ],
+            "capacityString": "3/4",
+            "diagnostics": null
+          }
+        ]
+      },
+      {
+        "date": "2026-06-30",
+        "dayName": "Tuesday",
+        "slots": [
+          {
+            "activity": {
+              "id": 1778591157121,
+              "day": "Tuesday",
+              "startTime": "07:00",
+              "endTime": "19:00",
+              "name": "Plantão",
+              "location": "Santa Casa",
+              "studentsCount": 5,
+              "hoursCount": 12,
+              "exceptions": [],
+              "type": "PLANTÃO",
+              "normalizedName": "PLANTAO"
+            },
+            "assigned": [
+              "Raquel",
+              "Wendel",
+              "Luisa",
+              "Camila"
+            ],
+            "capacityString": "4/5",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591180956,
+              "day": "Tuesday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Urologia",
+              "location": "CEM",
+              "studentsCount": 4,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "UROLOGIA"
+            },
+            "assigned": [
+              "Samuel",
+              "Victor",
+              "Nina",
+              "Leonardo"
+            ],
+            "capacityString": "4/4",
+            "diagnostics": null
+          }
+        ]
+      },
+      {
+        "date": "2026-07-01",
+        "dayName": "Wednesday",
+        "slots": [
+          {
+            "activity": {
+              "id": 1778591206672,
+              "day": "Wednesday",
+              "startTime": "07:00",
+              "endTime": "19:00",
+              "name": "Plantão",
+              "location": "Santa Casa",
+              "studentsCount": 6,
+              "hoursCount": 12,
+              "exceptions": [],
+              "type": "PLANTÃO",
+              "normalizedName": "PLANTAO"
+            },
+            "assigned": [
+              "Thayrine",
+              "Leonardo"
+            ],
+            "capacityString": "2/6",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591228971,
+              "day": "Wednesday",
+              "startTime": "07:00",
+              "endTime": "12:00",
+              "name": "Dor",
+              "location": "CEM",
+              "studentsCount": 4,
+              "hoursCount": 5,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "DOR"
+            },
+            "assigned": [
+              "Lucas",
+              "Samuel",
+              "Nina",
+              "Raquel"
+            ],
+            "capacityString": "4/4",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591268122,
+              "day": "Wednesday",
+              "startTime": "07:00",
+              "endTime": "12:00",
+              "name": "Ortopedia",
+              "location": "CEM",
+              "studentsCount": 1,
+              "hoursCount": 5,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "ORTOPEDIA"
+            },
+            "assigned": [
+              "Victor"
+            ],
+            "capacityString": "1/1",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591297022,
+              "day": "Wednesday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Vascular",
+              "location": "CEM",
+              "studentsCount": 7,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "VASCULAR"
+            },
+            "assigned": [
+              "Luisa",
+              "Camila",
+              "Samuel",
+              "Nina",
+              "Victor"
+            ],
+            "capacityString": "5/7",
+            "diagnostics": null
+          },
+          {
+            "activity": {
+              "id": 1778591324123,
+              "day": "Wednesday",
+              "startTime": "13:00",
+              "endTime": "17:00",
+              "name": "Neuro",
+              "location": "CEM",
+              "studentsCount": 3,
+              "hoursCount": 4,
+              "exceptions": [],
+              "type": "AMBULATORIO",
+              "normalizedName": "NEURO"
+            },
+            "assigned": [
+              "Lucas",
+              "Raquel",
+              "Wendel"
+            ],
+            "capacityString": "3/3",
+            "diagnostics": null
+          }
+        ]
+      }
+    ],
+    "studentStats": [
+      {
+        "id": 1778593065515,
+        "name": "Camila",
+        "affinityGroup": "A",
+        "totalHours": 205,
+        "requiredHours": 204,
+        "coveredActivities": [
+          "UROLOGIA",
+          "PLANTAO",
+          "ORTOPEDIA",
+          "CIR",
+          "OTORRINO",
+          "OFTALMO",
+          "NEURO",
+          "VASCULAR",
+          "GERAL",
+          "DOR"
+        ],
+        "hasPlantao": true
+      },
+      {
+        "id": 1778593100215,
+        "name": "Raquel",
+        "affinityGroup": "B",
+        "totalHours": 206,
+        "requiredHours": 204,
+        "coveredActivities": [
+          "VASCULAR",
+          "ORTOPEDIA",
+          "CIR",
+          "PLANTAO",
+          "UROLOGIA",
+          "OTORRINO",
+          "DOR",
+          "OFTALMO",
+          "NEURO",
+          "GERAL"
+        ],
+        "hasPlantao": true
+      },
+      {
+        "id": 1778593111832,
+        "name": "Thayrine",
+        "affinityGroup": "C",
+        "totalHours": 206,
+        "requiredHours": 204,
+        "coveredActivities": [
+          "DOR",
+          "NEURO",
+          "ORTOPEDIA",
+          "OFTALMO",
+          "PLANTAO",
+          "CIR",
+          "OTORRINO",
+          "UROLOGIA",
+          "VASCULAR",
+          "GERAL"
+        ],
+        "hasPlantao": true
+      },
+      {
+        "id": 1778593125798,
+        "name": "Leonardo",
+        "affinityGroup": "C",
+        "totalHours": 207,
+        "requiredHours": 204,
+        "coveredActivities": [
+          "ORTOPEDIA",
+          "CIR",
+          "UROLOGIA",
+          "PLANTAO",
+          "DOR",
+          "VASCULAR",
+          "OFTALMO",
+          "OTORRINO",
+          "GERAL",
+          "NEURO"
+        ],
+        "hasPlantao": true
+      },
+      {
+        "id": 1778593203748,
+        "name": "Luisa",
+        "affinityGroup": "C",
+        "totalHours": 206,
+        "requiredHours": 204,
+        "coveredActivities": [
+          "PLANTAO",
+          "OFTALMO",
+          "OTORRINO",
+          "ORTOPEDIA",
+          "UROLOGIA",
+          "VASCULAR",
+          "CIR",
+          "GERAL",
+          "DOR",
+          "NEURO"
+        ],
+        "hasPlantao": true
+      },
+      {
+        "id": 1778593210448,
+        "name": "Samuel",
+        "affinityGroup": "A",
+        "totalHours": 204,
+        "requiredHours": 204,
+        "coveredActivities": [
+          "PLANTAO",
+          "UROLOGIA",
+          "ORTOPEDIA",
+          "OTORRINO",
+          "CIR",
+          "NEURO",
+          "VASCULAR",
+          "GERAL",
+          "DOR",
+          "OFTALMO"
+        ],
+        "hasPlantao": true
+      },
+      {
+        "id": 1778593213015,
+        "name": "Victor",
+        "affinityGroup": "A",
+        "totalHours": 206,
+        "requiredHours": 204,
+        "coveredActivities": [
+          "NEURO",
+          "GERAL",
+          "ORTOPEDIA",
+          "PLANTAO",
+          "OTORRINO",
+          "DOR",
+          "UROLOGIA",
+          "VASCULAR",
+          "CIR",
+          "OFTALMO"
+        ],
+        "hasPlantao": true
+      },
+      {
+        "id": 1778593215615,
+        "name": "Wendel",
+        "affinityGroup": "C",
+        "totalHours": 205,
+        "requiredHours": 204,
+        "coveredActivities": [
+          "PLANTAO",
+          "UROLOGIA",
+          "ORTOPEDIA",
+          "NEURO",
+          "OTORRINO",
+          "DOR",
+          "GERAL",
+          "OFTALMO",
+          "VASCULAR",
+          "CIR"
+        ],
+        "hasPlantao": true
+      },
+      {
+        "id": 1778593473050,
+        "name": "Lucas",
+        "affinityGroup": "B",
+        "totalHours": 206,
+        "requiredHours": 204,
+        "coveredActivities": [
+          "UROLOGIA",
+          "PLANTAO",
+          "ORTOPEDIA",
+          "GERAL",
+          "OFTALMO",
+          "OTORRINO",
+          "NEURO",
+          "VASCULAR",
+          "DOR",
+          "CIR"
+        ],
+        "hasPlantao": true
+      },
+      {
+        "id": 1778621926270,
+        "name": "Nina",
+        "affinityGroup": "A",
+        "totalHours": 207,
+        "requiredHours": 204,
+        "coveredActivities": [
+          "ORTOPEDIA",
+          "PLANTAO",
+          "UROLOGIA",
+          "DOR",
+          "OTORRINO",
+          "VASCULAR",
+          "GERAL",
+          "NEURO",
+          "CIR",
+          "OFTALMO"
+        ],
+        "hasPlantao": true
+      }
+    ],
+    "mandatoryActivities": [
+      "PLANTAO",
+      "UROLOGIA",
+      "DOR",
+      "ORTOPEDIA",
+      "VASCULAR",
+      "NEURO",
+      "OFTALMO",
+      "OTORRINO",
+      "CIR",
+      "GERAL"
+    ],
+    "feasibility": {
+      "errors": [],
+      "warnings": [],
+      "maxCapacityHours": 2901,
+      "minRequiredHours": 778,
+      "neededHours": 2040
+    },
+    "pinWarnings": []
+  }
+}
