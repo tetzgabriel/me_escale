@@ -1548,6 +1548,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const studentViewOutput = document.getElementById('student-view-output');
     const viewToggleBtn = document.getElementById('view-toggle-btn');
     const exportCsvBtn = document.getElementById('export-csv-btn');
+    const exportSheetsBtn = document.getElementById('export-sheets-btn');
     const clearPinsBtn = document.getElementById('clear-pins-btn');
 
     let lastGeneratedSchedule = null;
@@ -2185,6 +2186,61 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const csv = '\uFEFF' + rows.map(r => r.map(escapeCsv).join(';')).join('\r\n');
             downloadFile(csv, 'text/csv;charset=utf-8', `escala_${toLocalDateStr(new Date())}.csv`);
+        });
+    }
+
+    // --- Criar Planilha no Google Sheets ---
+    // Sem API/OAuth: copia os dados como TSV (formato que o Sheets separa em
+    // colunas ao colar) e abre uma planilha nova em branco para o usu\u00E1rio colar.
+    //
+    // O copy precisa ser S\u00CDNCRONO e acontecer ANTES do window.open: a Clipboard
+    // API ass\u00EDncrona (navigator.clipboard.writeText) depende do documento estar
+    // em foco, e abrir a nova aba tira o foco antes da promise resolver \u2014 o que
+    // pode falhar silenciosamente enquanto o alerta ainda afirma "copiado".
+    // document.execCommand('copy') \u00E9 s\u00EDncrono, ent\u00E3o termina antes de qualquer
+    // navega\u00E7\u00E3o, o que o torna mais confi\u00E1vel aqui apesar de deprecated.
+    function copyToClipboardSync(text) {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        let ok = false;
+        try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+        document.body.removeChild(textarea);
+        return ok;
+    }
+
+    if (exportSheetsBtn) {
+        exportSheetsBtn.addEventListener('click', () => {
+            if (!lastGeneratedSchedule || !lastGeneratedSchedule.finalSchedule) {
+                alert('Gere uma escala primeiro.');
+                return;
+            }
+            const escapeTsv = (v) => String(v ?? '').replace(/\t/g, ' ').replace(/\r?\n/g, ' ');
+            const rows = [['Data', 'Atividade', 'Alunos Alocados']];
+            lastGeneratedSchedule.finalSchedule.forEach(day => {
+                day.slots.forEach(slot => {
+                    const title = `${slot.activity.startTime} ${slot.activity.name}`;
+                    const names = (slot.assigned && slot.assigned.length > 0) ? slot.assigned.join(', ') : '(vago)';
+                    rows.push([formatDateBR(day.date), title, names]);
+                });
+            });
+            const tsv = rows.map(r => r.map(escapeTsv).join('\t')).join('\n');
+
+            const copied = copyToClipboardSync(tsv);
+            if (copied) {
+                window.open('https://sheets.new', '_blank');
+                alert('Dados copiados! Uma planilha nova do Google Sheets foi aberta em outra aba \u2014 clique na c\u00E9lula A1 e cole (Ctrl+V ou Cmd+V) para preencher a escala.');
+            } else {
+                // N\u00E3o foi poss\u00EDvel copiar automaticamente (ex: navegador bloqueou):
+                // baixa um .tsv que pode ser importado (Arquivo > Importar) ou colado manualmente.
+                downloadFile(tsv, 'text/tab-separated-values;charset=utf-8', `escala_google_sheets_${toLocalDateStr(new Date())}.tsv`);
+                window.open('https://sheets.new', '_blank');
+                alert('N\u00E3o foi poss\u00EDvel copiar automaticamente para a \u00E1rea de transfer\u00EAncia. Baixamos um arquivo .tsv \u2014 na planilha que abriu, use Arquivo > Importar > Fazer upload para carreg\u00E1-lo.');
+            }
         });
     }
 
