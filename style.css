@@ -347,6 +347,25 @@ input::placeholder {
     color: var(--text-faint);
 }
 
+.checkbox-field label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 0;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.checkbox-field input[type="checkbox"] {
+    width: auto;
+    accent-color: var(--primary);
+}
+
+.group-hours-label {
+    font-weight: 700;
+    color: var(--primary);
+}
+
 input:focus, select:focus {
     outline: none;
     border-color: var(--primary);
@@ -667,6 +686,17 @@ button:active {
     font-size: 10px;
     background: var(--surface-sunken);
     color: var(--text-muted);
+    padding: 3px 8px;
+    border-radius: var(--radius-pill);
+    text-transform: uppercase;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+.group-badge {
+    font-size: 10px;
+    background: var(--primary-light);
+    color: var(--primary);
     padding: 3px 8px;
     border-radius: var(--radius-pill);
     text-transform: uppercase;

@@ -207,23 +207,51 @@ function createSchedulerCore() {
             return { errors, warnings };
         }
 
-        const requiredHours = config.requiredHours || 0;
-        let maxCapacityHours = 0;
-        let minRequiredHours = 0;
-        slots.forEach(s => {
-            maxCapacityHours += (s.activity.hoursCount || 0) * (s.activity.studentsCount || 0);
-            minRequiredHours += (s.activity.hoursCount || 0) * (s.activity.minStudents ?? 1);
-        });
+        const twoGroupsEnabled = !!config.twoGroupsEnabled;
+        const groupNames = (config.groupNames && config.groupNames.length === 2) ? config.groupNames : ['Grupo 1', 'Grupo 2'];
 
-        const neededHours = requiredHours * students.length;
-        if (neededHours > maxCapacityHours) {
-            const maxAvg = maxCapacityHours / students.length;
-            errors.push(`Meta de ${requiredHours}h por aluno é inatingível: mesmo lotando todas as atividades, a média máxima possível é de ${maxAvg.toFixed(1)}h por aluno.`);
+        if (twoGroupsEnabled) {
+            const missingGroupMsgs = new Set();
+            slots.forEach(s => {
+                if (s.activity.activityGroup !== '1' && s.activity.activityGroup !== '2') {
+                    missingGroupMsgs.add(`${s.activity.name}: sem grupo de atividade definido — será tratada como "${groupNames[0]}".`);
+                }
+            });
+            missingGroupMsgs.forEach(m => warnings.push(m));
         }
 
-        const minAvg = minRequiredHours / students.length;
-        if (requiredHours > 0 && minAvg > requiredHours) {
-            warnings.push(`Para cobrir o mínimo de todas as atividades, os alunos terão em média ${minAvg.toFixed(1)}h — acima da meta de ${requiredHours}h por aluno.`);
+        // Computes capacity/minimum-vs-target checks for one group's slots (or all slots, in single-group mode)
+        function checkHoursTarget(groupSlots, label, requiredHours) {
+            let maxCapacityHours = 0;
+            let minRequiredHours = 0;
+            groupSlots.forEach(s => {
+                maxCapacityHours += (s.activity.hoursCount || 0) * (s.activity.studentsCount || 0);
+                minRequiredHours += (s.activity.hoursCount || 0) * (s.activity.minStudents ?? 1);
+            });
+
+            const neededHours = requiredHours * students.length;
+            if (neededHours > maxCapacityHours) {
+                const maxAvg = maxCapacityHours / students.length;
+                errors.push(`Meta de ${requiredHours}h por aluno${label} é inatingível: mesmo lotando todas as atividades, a média máxima possível é de ${maxAvg.toFixed(1)}h por aluno.`);
+            }
+
+            const minAvg = minRequiredHours / students.length;
+            if (requiredHours > 0 && minAvg > requiredHours) {
+                warnings.push(`Para cobrir o mínimo de todas as atividades${label}, os alunos terão em média ${minAvg.toFixed(1)}h — acima da meta de ${requiredHours}h por aluno.`);
+            }
+
+            return { maxCapacityHours, minRequiredHours, neededHours };
+        }
+
+        let maxCapacityHours, minRequiredHours, neededHours;
+        if (twoGroupsEnabled) {
+            const r1 = checkHoursTarget(slots.filter(s => (s.activity.activityGroup || '1') === '1'), ` no grupo "${groupNames[0]}"`, config.requiredHoursGroup1 || 0);
+            const r2 = checkHoursTarget(slots.filter(s => s.activity.activityGroup === '2'), ` no grupo "${groupNames[1]}"`, config.requiredHoursGroup2 || 0);
+            maxCapacityHours = r1.maxCapacityHours + r2.maxCapacityHours;
+            minRequiredHours = r1.minRequiredHours + r2.minRequiredHours;
+            neededHours = r1.neededHours + r2.neededHours;
+        } else {
+            ({ maxCapacityHours, minRequiredHours, neededHours } = checkHoursTarget(slots, '', config.requiredHours || 0));
         }
 
         // Slots where student exceptions alone already make the minimum impossible
@@ -301,6 +329,36 @@ function createSchedulerCore() {
         });
         const pinnedKeys = new Set(validPins.map(p => `${p.date}|${String(p.activityId)}|${p.student.name}`));
 
+        // --- Two activity-group hour split: each activity belongs to group '1' or '2' (default
+        // '1' when unset), and each student has an independent hour target per group. Every other
+        // rule (overlap, plantão rest, exceptions, affinity, preferences, mandatory coverage) stays
+        // scoped globally, not per group — only the hours-balancing math below reads the group.
+        const twoGroupsEnabled = !!config.twoGroupsEnabled;
+
+        function groupOf(activity) {
+            return activity.activityGroup === '2' ? '2' : '1';
+        }
+
+        function addHours(stats, activity) {
+            stats.totalHours += activity.hoursCount;
+            if (twoGroupsEnabled) stats.hoursByGroup[groupOf(activity)] += activity.hoursCount;
+        }
+
+        // Remaining hours needed toward the target relevant to this activity (group target if
+        // two-group mode is on, overall target otherwise).
+        function remainingHours(stats, activity) {
+            if (twoGroupsEnabled) {
+                const g = groupOf(activity);
+                return stats.requiredHoursByGroup[g] - stats.hoursByGroup[g];
+            }
+            return stats.requiredHours - stats.totalHours;
+        }
+
+        // Hours accumulated so far toward the target relevant to this activity.
+        function hoursSoFar(stats, activity) {
+            return twoGroupsEnabled ? stats.hoursByGroup[groupOf(activity)] : stats.totalHours;
+        }
+
         function runSingleAttempt() {
             const studentStats = students.map(s => ({
                 id: s.id,
@@ -308,6 +366,8 @@ function createSchedulerCore() {
                 affinityGroup: s.affinityGroup,
                 totalHours: 0,
                 requiredHours: config.requiredHours || 0,
+                hoursByGroup: twoGroupsEnabled ? { 1: 0, 2: 0 } : undefined,
+                requiredHoursByGroup: twoGroupsEnabled ? { 1: config.requiredHoursGroup1 || 0, 2: config.requiredHoursGroup2 || 0 } : undefined,
                 coveredActivities: new Set(),
                 hasPlantao: false
             }));
@@ -335,7 +395,7 @@ function createSchedulerCore() {
 
                 const stats = studentStats.find(st => st.id === pin.student.id);
                 slot.assignedIds.push(pin.student.id);
-                stats.totalHours += slot.activity.hoursCount;
+                addHours(stats, slot.activity);
                 stats.coveredActivities.add(slot.activity.normalizedName);
                 if (isPlantao(slot.activity.type)) stats.hasPlantao = true;
 
@@ -396,19 +456,19 @@ function createSchedulerCore() {
                             }
 
                             // Priority 5: Overshoot fit - prefer students whose remaining hour deficit absorbs this slot
-                            const overA = Math.max(0, slot.activity.hoursCount - Math.max(0, statsA.requiredHours - statsA.totalHours));
-                            const overB = Math.max(0, slot.activity.hoursCount - Math.max(0, statsB.requiredHours - statsB.totalHours));
+                            const overA = Math.max(0, slot.activity.hoursCount - Math.max(0, remainingHours(statsA, slot.activity)));
+                            const overB = Math.max(0, slot.activity.hoursCount - Math.max(0, remainingHours(statsB, slot.activity)));
                             if (overA !== overB) return overA - overB;
 
                             // Priority 6: Hours Balance (ties keep the pre-shuffled random order — sort is stable)
-                            return statsA.totalHours - statsB.totalHours;
+                            return hoursSoFar(statsA, slot.activity) - hoursSoFar(statsB, slot.activity);
                         });
 
                         const chosen = eligible[0];
                         const stats = studentStats.find(st => st.id === chosen.id);
 
                         slot.assignedIds.push(chosen.id);
-                        stats.totalHours += slot.activity.hoursCount;
+                        addHours(stats, slot.activity);
                         stats.coveredActivities.add(slot.activity.normalizedName);
                         if (isPlantao(slot.activity.type)) stats.hasPlantao = true;
 
@@ -452,7 +512,7 @@ function createSchedulerCore() {
                         const stats = studentStats.find(st => st.id === s.id);
                         const needsAct = !stats.coveredActivities.has(slot.activity.normalizedName);
                         const needsPlantao = isPlantao(slot.activity.type) && !stats.hasPlantao;
-                        return stats.totalHours < stats.requiredHours || needsAct || needsPlantao;
+                        return remainingHours(stats, slot.activity) > 0 || needsAct || needsPlantao;
                     });
 
                     if (needingHoursOrCoverage.length === 0) break;
@@ -484,17 +544,17 @@ function createSchedulerCore() {
                         }
 
                         // Priority 5: Overshoot fit - prefer students whose remaining hour deficit absorbs this slot
-                        const overA = Math.max(0, slot.activity.hoursCount - Math.max(0, statsA.requiredHours - statsA.totalHours));
-                        const overB = Math.max(0, slot.activity.hoursCount - Math.max(0, statsB.requiredHours - statsB.totalHours));
+                        const overA = Math.max(0, slot.activity.hoursCount - Math.max(0, remainingHours(statsA, slot.activity)));
+                        const overB = Math.max(0, slot.activity.hoursCount - Math.max(0, remainingHours(statsB, slot.activity)));
                         if (overA !== overB) return overA - overB;
 
-                        return statsA.totalHours - statsB.totalHours;
+                        return hoursSoFar(statsA, slot.activity) - hoursSoFar(statsB, slot.activity);
                     });
 
                     const chosen = needingHoursOrCoverage[0];
                     const stats = studentStats.find(st => st.id === chosen.id);
                     slot.assignedIds.push(chosen.id);
-                    stats.totalHours += slot.activity.hoursCount;
+                    addHours(stats, slot.activity);
                     stats.coveredActivities.add(slot.activity.normalizedName);
                     if (isPlantao(slot.activity.type)) stats.hasPlantao = true;
 
@@ -608,14 +668,36 @@ function createSchedulerCore() {
                 // Penalty for missing Plantao
                 if (!stat.hasPlantao) coveragePenalty += 100;
 
-                // Penalty for finishing below the required hours target
-                hoursShortfall += Math.max(0, stat.requiredHours - stat.totalHours);
+                // Penalty for finishing below the required hours target. In two-group mode this is
+                // the sum of each group's own shortfall — a student who's over on one group and
+                // under on the other still shows a shortfall here, instead of the groups masking
+                // each other out through a combined total.
+                if (twoGroupsEnabled) {
+                    hoursShortfall += Math.max(0, stat.requiredHoursByGroup[1] - stat.hoursByGroup[1]);
+                    hoursShortfall += Math.max(0, stat.requiredHoursByGroup[2] - stat.hoursByGroup[2]);
+                } else {
+                    hoursShortfall += Math.max(0, stat.requiredHours - stat.totalHours);
+                }
             });
 
-            // Calculate variance in student hours (lower is more balanced)
-            const hours = studentStats.map(s => s.totalHours);
-            const avg = hours.reduce((a, b) => a + b, 0) / hours.length;
-            const variance = hours.reduce((a, b) => a + Math.pow(b - avg, 2), 0) / hours.length;
+            // Calculate variance in student hours (lower is more balanced). In two-group mode this
+            // is the SUM of each group's own variance across students — variance of the combined
+            // total alone can't detect a student skewed heavily toward one group and away from the
+            // other, since the totals could still look balanced.
+            let variance;
+            if (twoGroupsEnabled) {
+                const hoursG1 = studentStats.map(s => s.hoursByGroup[1]);
+                const hoursG2 = studentStats.map(s => s.hoursByGroup[2]);
+                const varianceOf = (arr) => {
+                    const avg = arr.reduce((a, b) => a + b, 0) / arr.length;
+                    return arr.reduce((a, b) => a + Math.pow(b - avg, 2), 0) / arr.length;
+                };
+                variance = varianceOf(hoursG1) + varianceOf(hoursG2);
+            } else {
+                const hours = studentStats.map(s => s.totalHours);
+                const avg = hours.reduce((a, b) => a + b, 0) / hours.length;
+                variance = hours.reduce((a, b) => a + Math.pow(b - avg, 2), 0) / hours.length;
+            }
 
             // Score: Higher weights for critical requirements, subtract bonuses
             return (emptyCount * 1000000) +
@@ -808,7 +890,11 @@ document.addEventListener('DOMContentLoaded', () => {
     let rotationConfig = {
         startDate: '',
         endDate: '',
-        requiredHours: 0
+        requiredHours: 0,
+        twoGroupsEnabled: false,
+        groupNames: ['Grupo 1', 'Grupo 2'],
+        requiredHoursGroup1: 0,
+        requiredHoursGroup2: 0
     };
 
     // --- Slow page auto-scroll while dragging a student near the viewport edges ---
@@ -868,6 +954,40 @@ document.addEventListener('DOMContentLoaded', () => {
         return STUDENT_COLORS[Math.floor(Math.random() * STUDENT_COLORS.length)];
     }
 
+    // --- Rodízio com 2 grupos de atividades ---
+
+    function currentGroupNames() {
+        const name1 = document.getElementById('group1-name').value.trim() || 'Grupo 1';
+        const name2 = document.getElementById('group2-name').value.trim() || 'Grupo 2';
+        return [name1, name2];
+    }
+
+    function groupDisplayName(activityGroupKey) {
+        const names = (rotationConfig.groupNames && rotationConfig.groupNames.length === 2) ? rotationConfig.groupNames : ['Grupo 1', 'Grupo 2'];
+        return activityGroupKey === '2' ? names[1] : names[0];
+    }
+
+    function updateTwoGroupsUI() {
+        const enabled = document.getElementById('two-groups-toggle').checked;
+        document.getElementById('single-hours-row').classList.toggle('hidden', enabled);
+        document.getElementById('two-groups-row').classList.toggle('hidden', !enabled);
+
+        const [name1, name2] = currentGroupNames();
+        document.querySelectorAll('.group-hours-label').forEach((el, idx) => {
+            el.textContent = idx === 0 ? name1 : name2;
+        });
+
+        const groupField = document.getElementById('activity-group-field');
+        const groupSelect = document.getElementById('activity-group');
+        groupField.classList.toggle('hidden', !enabled);
+        groupSelect.required = enabled;
+        const previousValue = groupSelect.value;
+        groupSelect.innerHTML = `<option value="1">${name1}</option><option value="2">${name2}</option>`;
+        if (previousValue) groupSelect.value = previousValue;
+
+        renderActivities();
+    }
+
     // Load data from localStorage
     const savedActivities = localStorage.getItem('med_rotations_activities');
     if (savedActivities) {
@@ -903,7 +1023,17 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('rotation-start').value = rotationConfig.startDate || '';
         document.getElementById('rotation-end').value = rotationConfig.endDate || '';
         document.getElementById('required-hours').value = rotationConfig.requiredHours || '';
+        document.getElementById('two-groups-toggle').checked = !!rotationConfig.twoGroupsEnabled;
+        document.getElementById('group1-name').value = (rotationConfig.groupNames && rotationConfig.groupNames[0]) || 'Grupo 1';
+        document.getElementById('group2-name').value = (rotationConfig.groupNames && rotationConfig.groupNames[1]) || 'Grupo 2';
+        document.getElementById('group1-hours').value = rotationConfig.requiredHoursGroup1 || '';
+        document.getElementById('group2-hours').value = rotationConfig.requiredHoursGroup2 || '';
     }
+    updateTwoGroupsUI();
+
+    document.getElementById('two-groups-toggle').addEventListener('change', updateTwoGroupsUI);
+    document.getElementById('group1-name').addEventListener('input', updateTwoGroupsUI);
+    document.getElementById('group2-name').addEventListener('input', updateTwoGroupsUI);
 
     renderActivities();
     renderStudents();
@@ -943,6 +1073,10 @@ document.addEventListener('DOMContentLoaded', () => {
         rotationConfig.startDate = document.getElementById('rotation-start').value;
         rotationConfig.endDate = document.getElementById('rotation-end').value;
         rotationConfig.requiredHours = parseFloat(document.getElementById('required-hours').value) || 0;
+        rotationConfig.twoGroupsEnabled = document.getElementById('two-groups-toggle').checked;
+        rotationConfig.groupNames = currentGroupNames();
+        rotationConfig.requiredHoursGroup1 = parseFloat(document.getElementById('group1-hours').value) || 0;
+        rotationConfig.requiredHoursGroup2 = parseFloat(document.getElementById('group2-hours').value) || 0;
         localStorage.setItem('med_rotations_config', JSON.stringify(rotationConfig));
         alert('Configurações da escala salvas!');
     });
@@ -1000,6 +1134,9 @@ document.addEventListener('DOMContentLoaded', () => {
             hoursCount: parseFloat(document.getElementById('hours-count').value),
             exceptions: [...currentExceptions]
         };
+        if (rotationConfig.twoGroupsEnabled) {
+            newActivity.activityGroup = document.getElementById('activity-group').value;
+        }
 
         activities.push(newActivity);
         saveActivities();
@@ -1379,9 +1516,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
             }
 
+            const groupBadge = rotationConfig.twoGroupsEnabled
+                ? `<span class="group-badge">${groupDisplayName(activity.activityGroup || '1')}</span>`
+                : '';
+
             card.innerHTML = `
                 <div class="activity-info">
-                    <h3>${activity.name} <span class="type-badge">${activity.type || 'PLANTÃO'}</span></h3>
+                    <h3>${activity.name} <span class="type-badge">${activity.type || 'PLANTÃO'}</span>${groupBadge}</h3>
                     <div class="activity-details">
                         <span><strong>Dia:</strong> ${DAY_TRANSLATIONS[activity.day]}</span>
                         <span><strong>Horário:</strong> ${activity.startTime} - ${activity.endTime}</span>
@@ -1436,6 +1577,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         <option value="AMBULATORIO" ${activity.type === 'AMBULATORIO' ? 'selected' : ''}>AMBULATORIO</option>
                     </select>
                 </div>
+                ${rotationConfig.twoGroupsEnabled ? `
+                <div class="form-group">
+                    <label>Grupo de Atividade</label>
+                    <select id="edit-activity-group" required>
+                        <option value="1" ${(activity.activityGroup || '1') === '1' ? 'selected' : ''}>${groupDisplayName('1')}</option>
+                        <option value="2" ${activity.activityGroup === '2' ? 'selected' : ''}>${groupDisplayName('2')}</option>
+                    </select>
+                </div>` : ''}
                 <div class="form-group">
                     <label>Local</label>
                     <input type="text" id="edit-location" value="${activity.location}" required>
@@ -1510,7 +1659,10 @@ document.addEventListener('DOMContentLoaded', () => {
             activity.studentsCount = parseInt(document.getElementById('edit-students-number').value);
             activity.hoursCount = parseFloat(document.getElementById('edit-hours-count').value);
             activity.exceptions = modalExceptions;
-            
+            if (rotationConfig.twoGroupsEnabled) {
+                activity.activityGroup = document.getElementById('edit-activity-group').value;
+            }
+
             saveActivities();
             renderActivities();
             closeModalHandler();
@@ -1962,10 +2114,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const { finalSchedule, studentStats } = lastGeneratedSchedule;
 
+        const twoGroupsEnabled = !!rotationConfig.twoGroupsEnabled;
+
         // Reset all totals and ensure coveredActivities is a Set
         studentStats.forEach(stat => {
             stat.totalHours = 0;
             stat.hasPlantao = false;
+            if (twoGroupsEnabled) {
+                stat.hoursByGroup = { 1: 0, 2: 0 };
+                stat.requiredHoursByGroup = { 1: rotationConfig.requiredHoursGroup1 || 0, 2: rotationConfig.requiredHoursGroup2 || 0 };
+            }
             if (!(stat.coveredActivities instanceof Set)) {
                 stat.coveredActivities = new Set();
             } else {
@@ -1982,6 +2140,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     const stat = studentStats.find(s => s.name === name);
                     if (stat) {
                         stat.totalHours += (slot.activity.hoursCount || 0);
+                        if (twoGroupsEnabled) {
+                            const g = slot.activity.activityGroup === '2' ? 2 : 1;
+                            stat.hoursByGroup[g] += (slot.activity.hoursCount || 0);
+                        }
                         if (slot.activity.name) {
                             stat.coveredActivities.add(normalizeActivityName(slot.activity.name));
                         }
@@ -2161,19 +2323,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 v = String(v ?? '');
                 return (v.includes(';') || v.includes('"') || v.includes('\n')) ? '"' + v.replace(/"/g, '""') + '"' : v;
             };
-            const rows = [['Data', 'Dia da Semana', 'Atividade', 'Tipo', 'Início', 'Término', 'Local', 'Horas', 'Aluno', 'Grupo']];
+            const header = ['Data', 'Dia da Semana', 'Atividade', 'Tipo'];
+            if (rotationConfig.twoGroupsEnabled) header.push('Grupo de Atividade');
+            header.push('Início', 'Término', 'Local', 'Horas', 'Aluno', 'Grupo');
+            const rows = [header];
             lastGeneratedSchedule.finalSchedule.forEach(day => {
                 day.slots.forEach(slot => {
                     const base = [
                         formatDateBR(day.date),
                         DAY_TRANSLATIONS[day.dayName] || day.dayName,
                         slot.activity.name,
-                        slot.activity.type || 'PLANTÃO',
+                        slot.activity.type || 'PLANTÃO'
+                    ];
+                    if (rotationConfig.twoGroupsEnabled) base.push(groupDisplayName(slot.activity.activityGroup || '1'));
+                    base.push(
                         slot.activity.startTime,
                         slot.activity.endTime,
                         slot.activity.location || '',
                         String(slot.activity.hoursCount ?? '').replace('.', ',')
-                    ];
+                    );
                     if (!slot.assigned || slot.assigned.length === 0) {
                         rows.push([...base, '(vago)', '']);
                     } else {
@@ -2266,6 +2434,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     : a.date.localeCompare(b.date));
             const totalHours = entries.reduce((sum, e) => sum + (e.activity.hoursCount || 0), 0);
 
+            let totalsHtml;
+            if (rotationConfig.twoGroupsEnabled) {
+                const hoursGroup1 = entries.filter(e => (e.activity.activityGroup || '1') === '1').reduce((sum, e) => sum + (e.activity.hoursCount || 0), 0);
+                const hoursGroup2 = entries.filter(e => e.activity.activityGroup === '2').reduce((sum, e) => sum + (e.activity.hoursCount || 0), 0);
+                totalsHtml = `
+                    <span class="student-agenda-total">${hoursGroup1.toFixed(1)}h / ${rotationConfig.requiredHoursGroup1 || 0}h (${groupDisplayName('1')})</span>
+                    <span class="student-agenda-total">${hoursGroup2.toFixed(1)}h / ${rotationConfig.requiredHoursGroup2 || 0}h (${groupDisplayName('2')})</span>
+                `;
+            } else {
+                totalsHtml = `<span class="student-agenda-total">${totalHours.toFixed(1)}h / ${rotationConfig.requiredHours || 0}h</span>`;
+            }
+
             const card = document.createElement('div');
             card.className = 'student-agenda-card';
 
@@ -2284,7 +2464,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <span class="color-dot" style="background-color: ${student ? student.color : '#ccc'}"></span>
                     <h4>${name}</h4>
                     ${student && student.affinityGroup ? `<span class="affinity-badge">👥 ${student.affinityGroup}</span>` : ''}
-                    <span class="student-agenda-total">${totalHours.toFixed(1)}h / ${rotationConfig.requiredHours || 0}h</span>
+                    ${totalsHtml}
                 </div>
                 ${entries.length === 0 ? '<p class="empty-msg">Nenhuma atividade atribuída.</p>' : `
                 <table class="stats-table student-agenda-table">
@@ -2342,6 +2522,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (cfg.requiredHours != null && (typeof cfg.requiredHours !== 'number' || cfg.requiredHours < 0)) {
             warnings.push('Config: meta de horas inválida — será tratada como 0.');
         }
+        if (cfg.twoGroupsEnabled) {
+            if (!Array.isArray(cfg.groupNames) || cfg.groupNames.length !== 2) {
+                warnings.push('Config: nomes dos grupos de atividade ausentes ou inválidos — serão tratados como "Grupo 1"/"Grupo 2".');
+            }
+            if (cfg.requiredHoursGroup1 != null && (typeof cfg.requiredHoursGroup1 !== 'number' || cfg.requiredHoursGroup1 < 0)) {
+                warnings.push('Config: meta de horas do Grupo 1 inválida — será tratada como 0.');
+            }
+            if (cfg.requiredHoursGroup2 != null && (typeof cfg.requiredHoursGroup2 !== 'number' || cfg.requiredHoursGroup2 < 0)) {
+                warnings.push('Config: meta de horas do Grupo 2 inválida — será tratada como 0.');
+            }
+        }
 
         const activityIds = new Set();
         data.activities.forEach((a, i) => {
@@ -2365,6 +2556,9 @@ document.addEventListener('DOMContentLoaded', () => {
             else if (Number.isInteger(a.studentsCount) && min > a.studentsCount) errors.push(`${label}: mínimo (${min}) maior que o máximo (${a.studentsCount}).`);
             if (a.exceptions && (!Array.isArray(a.exceptions) || a.exceptions.some(ex => typeof ex !== 'string' || !DATE_RE.test(ex)))) {
                 warnings.push(`${label}: lista de exceções contém datas inválidas.`);
+            }
+            if (cfg.twoGroupsEnabled && a.activityGroup !== '1' && a.activityGroup !== '2') {
+                warnings.push(`${label}: sem grupo de atividade definido — será tratada como Grupo 1.`);
             }
         });
 
@@ -2411,7 +2605,10 @@ document.addEventListener('DOMContentLoaded', () => {
         renderHealthIssues(scheduleData.feasibility, scheduleData.pinWarnings, scheduleData.healthWarning);
 
         resultsContainer.classList.remove('hidden');
-        
+
+        const showGroupHours = !!rotationConfig.twoGroupsEnabled;
+        const [group1Label, group2Label] = showGroupHours ? [groupDisplayName('1'), groupDisplayName('2')] : ['', ''];
+
         // 1. Render Stats
         let statsHtml = `
             <h3>Equilíbrio de Carga Horária e Requisitos</h3>
@@ -2419,7 +2616,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 <thead>
                     <tr>
                         <th>Nome do Aluno</th>
-                        <th>Horas</th>
+                        ${showGroupHours
+                            ? `<th>Horas (${group1Label})</th><th>Horas (${group2Label})</th>`
+                            : '<th>Horas</th>'}
                         <th>Plantão</th>
                         <th>Atividades Cobertas</th>
                         <th>Status</th>
@@ -2430,9 +2629,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
         studentStats.forEach(stat => {
             const diff = stat.requiredHours - stat.totalHours;
-            const hourPill = diff <= 0
-                ? `<span class="pill pill-success">✅ ${stat.totalHours.toFixed(1)}h / ${stat.requiredHours}h</span>`
-                : `<span class="pill pill-warning">⌛ ${stat.totalHours.toFixed(1)}h / ${stat.requiredHours}h</span>`;
+
+            const hourPillFor = (hours, required) => (required - hours) <= 0
+                ? `<span class="pill pill-success">✅ ${hours.toFixed(1)}h / ${required}h</span>`
+                : `<span class="pill pill-warning">⌛ ${hours.toFixed(1)}h / ${required}h</span>`;
+
+            let hoursCellsHtml;
+            let groupsComplete = true;
+            if (showGroupHours) {
+                const hoursByGroup = stat.hoursByGroup || { 1: 0, 2: 0 };
+                const requiredByGroup = stat.requiredHoursByGroup || { 1: 0, 2: 0 };
+                groupsComplete = (requiredByGroup[1] - hoursByGroup[1]) <= 0 && (requiredByGroup[2] - hoursByGroup[2]) <= 0;
+                hoursCellsHtml = `
+                    <td>${hourPillFor(hoursByGroup[1] || 0, requiredByGroup[1] || 0)}</td>
+                    <td>${hourPillFor(hoursByGroup[2] || 0, requiredByGroup[2] || 0)}</td>
+                `;
+            } else {
+                hoursCellsHtml = `<td>${hourPillFor(stat.totalHours, stat.requiredHours)}</td>`;
+            }
+
             const plantaoPill = stat.hasPlantao
                 ? '<span class="pill pill-success">✅</span>'
                 : '<span class="pill pill-danger">❌</span>';
@@ -2443,7 +2658,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ? '<span class="pill pill-success">✅ Completo</span>'
                 : `<span class="pill pill-warning">⚠️ ${coveredCount}/${totalMandatory}</span>`;
 
-            const isComplete = diff <= 0 && stat.hasPlantao && coveredCount === totalMandatory;
+            const isComplete = (showGroupHours ? groupsComplete : diff <= 0) && stat.hasPlantao && coveredCount === totalMandatory;
             const overallPill = isComplete
                 ? '<span class="pill pill-success">✅ Completo</span>'
                 : '<span class="pill pill-warning">⌛ Pendente</span>';
@@ -2455,7 +2670,7 @@ document.addEventListener('DOMContentLoaded', () => {
             statsHtml += `
                 <tr>
                     <td>${stat.name}</td>
-                    <td>${hourPill}</td>
+                    ${hoursCellsHtml}
                     <td style="text-align: center">${plantaoPill}</td>
                     <td title="${coverageTitle}" style="cursor: help">${coveragePill}</td>
                     <td>${overallPill}</td>
@@ -2543,6 +2758,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // IMPORTANT: Update rotationConfig IMMEDIATELY so it's available for calculations
                     rotationConfig = importedData.config;
+                    if (rotationConfig.twoGroupsEnabled) {
+                        activities.forEach(a => {
+                            if (a.activityGroup !== '1' && a.activityGroup !== '2') a.activityGroup = '1';
+                        });
+                    }
                     students = importedData.students || [];
                     lastGeneratedSchedule = (importedData.lastGeneratedSchedule && Array.isArray(importedData.lastGeneratedSchedule.finalSchedule))
                         ? importedData.lastGeneratedSchedule
@@ -2565,7 +2785,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('rotation-start').value = rotationConfig.startDate || '';
                     document.getElementById('rotation-end').value = rotationConfig.endDate || '';
                     document.getElementById('required-hours').value = rotationConfig.requiredHours || '';
-                    renderActivities();
+                    document.getElementById('two-groups-toggle').checked = !!rotationConfig.twoGroupsEnabled;
+                    document.getElementById('group1-name').value = (rotationConfig.groupNames && rotationConfig.groupNames[0]) || 'Grupo 1';
+                    document.getElementById('group2-name').value = (rotationConfig.groupNames && rotationConfig.groupNames[1]) || 'Grupo 2';
+                    document.getElementById('group1-hours').value = rotationConfig.requiredHoursGroup1 || '';
+                    document.getElementById('group2-hours').value = rotationConfig.requiredHoursGroup2 || '';
+                    updateTwoGroupsUI();
                     renderStudents();
 
                     if (lastGeneratedSchedule) {
@@ -2592,6 +2817,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             affinityGroup: s.affinityGroup,
                             totalHours: 0,
                             requiredHours: rotationConfig.requiredHours || 0,
+                            hoursByGroup: rotationConfig.twoGroupsEnabled ? { 1: 0, 2: 0 } : undefined,
+                            requiredHoursByGroup: rotationConfig.twoGroupsEnabled
+                                ? { 1: rotationConfig.requiredHoursGroup1 || 0, 2: rotationConfig.requiredHoursGroup2 || 0 }
+                                : undefined,
                             coveredActivities: new Set(),
                             hasPlantao: false
                         }));
@@ -2630,7 +2859,11 @@ document.addEventListener('DOMContentLoaded', () => {
             rotationConfig = {
                 startDate: '',
                 endDate: '',
-                requiredHours: 0
+                requiredHours: 0,
+                twoGroupsEnabled: false,
+                groupNames: ['Grupo 1', 'Grupo 2'],
+                requiredHoursGroup1: 0,
+                requiredHoursGroup2: 0
             };
             lastGeneratedSchedule = null;
             pinnedAssignments = [];
@@ -2643,11 +2876,16 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('rotation-start').value = '';
             document.getElementById('rotation-end').value = '';
             document.getElementById('required-hours').value = '';
-            
+            document.getElementById('two-groups-toggle').checked = false;
+            document.getElementById('group1-name').value = 'Grupo 1';
+            document.getElementById('group2-name').value = 'Grupo 2';
+            document.getElementById('group1-hours').value = '';
+            document.getElementById('group2-hours').value = '';
+
             activityForm.reset();
             studentForm.reset();
-            
-            renderActivities();
+
+            updateTwoGroupsUI();
             renderStudents();
             renderExceptionChips();
             renderStudentExceptionChips();

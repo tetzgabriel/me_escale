@@ -45,9 +45,32 @@
                     <label for="rotation-end">Data de Término</label>
                     <input type="date" id="rotation-end">
                 </div>
+            </div>
+            <div class="form-group checkbox-field">
+                <label for="two-groups-toggle"><input type="checkbox" id="two-groups-toggle"> Rodízio com 2 grupos de atividades</label>
+            </div>
+            <div class="form-row" id="single-hours-row">
                 <div class="form-group">
                     <label for="required-hours">Horas por Aluno</label>
                     <input type="number" id="required-hours" min="0" step="0.5" placeholder="ex: 40">
+                </div>
+            </div>
+            <div class="form-row hidden" id="two-groups-row">
+                <div class="form-group">
+                    <label for="group1-name">Nome do Grupo 1</label>
+                    <input type="text" id="group1-name" placeholder="ex: Ambulatório" value="Grupo 1">
+                </div>
+                <div class="form-group">
+                    <label for="group1-hours"><span class="group-hours-label">Grupo 1</span>: Horas por Aluno</label>
+                    <input type="number" id="group1-hours" min="0" step="0.5" placeholder="ex: 40">
+                </div>
+                <div class="form-group">
+                    <label for="group2-name">Nome do Grupo 2</label>
+                    <input type="text" id="group2-name" placeholder="ex: Plantão" value="Grupo 2">
+                </div>
+                <div class="form-group">
+                    <label for="group2-hours"><span class="group-hours-label">Grupo 2</span>: Horas por Aluno</label>
+                    <input type="number" id="group2-hours" min="0" step="0.5" placeholder="ex: 40">
                 </div>
             </div>
             <button type="button" id="save-global-dates">💾 Salvar Configurações</button>
@@ -99,6 +122,11 @@
                             <option value="PLANTÃO">PLANTÃO</option>
                             <option value="AMBULATORIO">AMBULATORIO</option>
                         </select>
+                    </div>
+
+                    <div class="form-group hidden" id="activity-group-field">
+                        <label for="activity-group">Grupo de Atividade</label>
+                        <select id="activity-group"></select>
                     </div>
 
                     <div class="form-group">

@@ -3,7 +3,14 @@
   "config": {
     "startDate": "2026-05-19",
     "endDate": "2026-07-01",
-    "requiredHours": 204
+    "requiredHours": 204,
+    "twoGroupsEnabled": true,
+    "groupNames": [
+      "AtividadeA",
+      "AtividadeB"
+    ],
+    "requiredHoursGroup1": 130,
+    "requiredHoursGroup2": 74
   },
   "activities": [
     {
@@ -15,7 +22,8 @@
       "location": "Santa Casa",
       "studentsCount": 1,
       "hoursCount": 12,
-      "exceptions": []
+      "exceptions": [],
+      "activityGroup": "1"
     },
     {
       "id": 1778590963486,
@@ -27,7 +35,8 @@
       "studentsCount": 4,
       "hoursCount": 5,
       "exceptions": [],
-      "type": "AMBULATORIO"
+      "type": "AMBULATORIO",
+      "activityGroup": "1"
     },
     {
       "id": 1778591059922,
@@ -39,7 +48,8 @@
       "studentsCount": 6,
       "hoursCount": 4,
       "exceptions": [],
-      "type": "AMBULATORIO"
+      "type": "AMBULATORIO",
+      "activityGroup": "1"
     },
     {
       "id": 1778591112140,
@@ -51,7 +61,8 @@
       "studentsCount": 4,
       "hoursCount": 4,
       "exceptions": [],
-      "type": "AMBULATORIO"
+      "type": "AMBULATORIO",
+      "activityGroup": "1"
     },
     {
       "id": 1778591157121,
@@ -62,7 +73,8 @@
       "location": "Santa Casa",
       "studentsCount": 5,
       "hoursCount": 12,
-      "exceptions": []
+      "exceptions": [],
+      "activityGroup": "1"
     },
     {
       "id": 1778591180956,
@@ -74,7 +86,8 @@
       "studentsCount": 4,
       "hoursCount": 4,
       "exceptions": [],
-      "type": "AMBULATORIO"
+      "type": "AMBULATORIO",
+      "activityGroup": "1"
     },
     {
       "id": 1778591206672,
@@ -85,7 +98,8 @@
       "location": "Santa Casa",
       "studentsCount": 6,
       "hoursCount": 12,
-      "exceptions": []
+      "exceptions": [],
+      "activityGroup": "1"
     },
     {
       "id": 1778591228971,
@@ -97,7 +111,8 @@
       "studentsCount": 4,
       "hoursCount": 5,
       "exceptions": [],
-      "type": "AMBULATORIO"
+      "type": "AMBULATORIO",
+      "activityGroup": "1"
     },
     {
       "id": 1778591268122,
@@ -109,7 +124,8 @@
       "studentsCount": 1,
       "hoursCount": 5,
       "exceptions": [],
-      "type": "AMBULATORIO"
+      "type": "AMBULATORIO",
+      "activityGroup": "1"
     },
     {
       "id": 1778591297022,
@@ -121,7 +137,8 @@
       "studentsCount": 7,
       "hoursCount": 4,
       "exceptions": [],
-      "type": "AMBULATORIO"
+      "type": "AMBULATORIO",
+      "activityGroup": "1"
     },
     {
       "id": 1778591324123,
@@ -133,7 +150,8 @@
       "studentsCount": 3,
       "hoursCount": 4,
       "exceptions": [],
-      "type": "AMBULATORIO"
+      "type": "AMBULATORIO",
+      "activityGroup": "2"
     },
     {
       "id": 1778591364456,
@@ -144,7 +162,8 @@
       "location": "Santa Casa",
       "studentsCount": 3,
       "hoursCount": 12,
-      "exceptions": []
+      "exceptions": [],
+      "activityGroup": "2"
     },
     {
       "id": 1778591435939,
@@ -156,7 +175,8 @@
       "studentsCount": 3,
       "hoursCount": 5,
       "exceptions": [],
-      "type": "AMBULATORIO"
+      "type": "AMBULATORIO",
+      "activityGroup": "2"
     },
     {
       "id": 1778591463356,
@@ -168,7 +188,8 @@
       "studentsCount": 5,
       "hoursCount": 5,
       "exceptions": [],
-      "type": "AMBULATORIO"
+      "type": "AMBULATORIO",
+      "activityGroup": "2"
     },
     {
       "id": 1778591489023,
@@ -180,7 +201,8 @@
       "studentsCount": 3,
       "hoursCount": 5,
       "exceptions": [],
-      "type": "AMBULATORIO"
+      "type": "AMBULATORIO",
+      "activityGroup": "2"
     },
     {
       "id": 1778591871058,
@@ -192,7 +214,8 @@
       "studentsCount": 3,
       "hoursCount": 4,
       "exceptions": [],
-      "type": "AMBULATORIO"
+      "type": "AMBULATORIO",
+      "activityGroup": "2"
     },
     {
       "id": 1778591887190,
@@ -204,7 +227,8 @@
       "studentsCount": 5,
       "hoursCount": 4,
       "exceptions": [],
-      "type": "AMBULATORIO"
+      "type": "AMBULATORIO",
+      "activityGroup": "2"
     },
     {
       "id": 1778591907473,
@@ -215,7 +239,8 @@
       "location": "Santa Casa",
       "studentsCount": 2,
       "hoursCount": 12,
-      "exceptions": []
+      "exceptions": [],
+      "activityGroup": "2"
     },
     {
       "id": 1778591925758,
@@ -227,7 +252,8 @@
       "studentsCount": 4,
       "hoursCount": 4,
       "exceptions": [],
-      "type": "AMBULATORIO"
+      "type": "AMBULATORIO",
+      "activityGroup": "2"
     }
   ],
   "students": [
