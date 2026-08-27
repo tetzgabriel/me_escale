@@ -55,6 +55,17 @@ function createSchedulerCore() {
         return (start1 < end2 && start2 < end1);
     }
 
+    // Activity exceptions can be a single date string ("YYYY-MM-DD") or an
+    // interval object ({start, end}, both inclusive) covering a date range.
+    function isActivityExcepted(activity, dateStr) {
+        if (!activity.exceptions) return false;
+        return activity.exceptions.some(exc => {
+            if (typeof exc === 'string') return exc === dateStr;
+            if (exc && exc.start && exc.end) return dateStr >= exc.start && dateStr <= exc.end;
+            return false;
+        });
+    }
+
     function hasException(student, dateStr, activity) {
         if (!student.exceptions) return false;
         return student.exceptions.some(exc => {
@@ -159,7 +170,7 @@ function createSchedulerCore() {
             const dayName = current.toLocaleDateString('en-US', { weekday: 'long' });
 
             acts.forEach(a => {
-                if (a.day === dayName && (!a.exceptions || !a.exceptions.includes(dateStr))) {
+                if (a.day === dayName && !isActivityExcepted(a, dateStr)) {
                     uniqueNames.add(normalizeActivityName(a.name));
                 }
             });
@@ -180,7 +191,7 @@ function createSchedulerCore() {
             const dateStr = toLocalDateStr(current);
             const dayName = current.toLocaleDateString('en-US', { weekday: 'long' });
             activities.forEach(a => {
-                if (a.day === dayName && (!a.exceptions || !a.exceptions.includes(dateStr))) {
+                if (a.day === dayName && !isActivityExcepted(a, dateStr)) {
                     slots.push({
                         dateStr,
                         dayName,
@@ -852,6 +863,7 @@ function createSchedulerCore() {
         normalizeActivityName,
         checkOverlap,
         hasException,
+        isActivityExcepted,
         getPreferenceScore
     };
 }
@@ -1081,25 +1093,43 @@ document.addEventListener('DOMContentLoaded', () => {
         alert('Configurações da escala salvas!');
     });
 
+    // Activity exceptions can be a single date ("YYYY-MM-DD") or an interval
+    // ({start, end}) covering a range of days the activity won't happen.
+    function formatExceptionLabel(exc) {
+        return typeof exc === 'string' ? exc : `${exc.start} a ${exc.end}`;
+    }
+
     // Add exception handler
     addExceptionBtn.addEventListener('click', () => {
         const dateInput = document.getElementById('exception-date');
-        const dateValue = dateInput.value;
-        
-        if (dateValue && !currentExceptions.includes(dateValue)) {
-            currentExceptions.push(dateValue);
-            renderExceptionChips();
-            dateInput.value = '';
+        const endInput = document.getElementById('exception-date-end');
+        const startValue = dateInput.value;
+        const endValue = endInput.value;
+
+        if (!startValue) return;
+
+        if (endValue && endValue !== startValue) {
+            if (endValue < startValue) {
+                alert('A data final da exceção deve ser igual ou posterior à data inicial.');
+                return;
+            }
+            currentExceptions.push({ start: startValue, end: endValue });
+        } else if (!currentExceptions.includes(startValue)) {
+            currentExceptions.push(startValue);
         }
+
+        renderExceptionChips();
+        dateInput.value = '';
+        endInput.value = '';
     });
 
     function renderExceptionChips() {
         currentExceptionsList.innerHTML = '';
-        currentExceptions.forEach((date, index) => {
+        currentExceptions.forEach((exc, index) => {
             const tag = document.createElement('span');
             tag.className = 'tag exception';
             tag.innerHTML = `
-                ${date} 
+                ${formatExceptionLabel(exc)}
                 <span class="remove-tag" data-index="${index}">&times;</span>
             `;
             currentExceptionsList.appendChild(tag);
@@ -1511,7 +1541,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 exceptionsHtml = `
                     <div class="activity-exceptions">
                         <strong>Exceções:</strong>
-                        ${activity.exceptions.map(ex => `<span class="exception-tag">${ex}</span>`).join('')}
+                        ${activity.exceptions.map(ex => `<span class="exception-tag">${formatExceptionLabel(ex)}</span>`).join('')}
                     </div>
                 `;
             }
@@ -1608,6 +1638,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     <h4>Exceções da Atividade</h4>
                     <div class="form-row">
                         <input type="date" id="modal-act-exc-date">
+                        <span>até (opcional)</span>
+                        <input type="date" id="modal-act-exc-date-end">
                         <button type="button" id="modal-act-add-exc" class="secondary-btn">Adicionar Exceção</button>
                     </div>
                     <div id="modal-act-exc-list" class="tag-container"></div>
@@ -1620,10 +1652,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const renderModalChips = () => {
             const list = document.getElementById('modal-act-exc-list');
             list.innerHTML = '';
-            modalExceptions.forEach((date, idx) => {
+            modalExceptions.forEach((exc, idx) => {
                 const tag = document.createElement('span');
                 tag.className = 'tag exception';
-                tag.innerHTML = `${date} <span class="remove-modal-tag" data-idx="${idx}">&times;</span>`;
+                tag.innerHTML = `${formatExceptionLabel(exc)} <span class="remove-modal-tag" data-idx="${idx}">&times;</span>`;
                 list.appendChild(tag);
             });
 
@@ -1639,12 +1671,26 @@ document.addEventListener('DOMContentLoaded', () => {
         renderModalChips();
 
         document.getElementById('modal-act-add-exc').onclick = () => {
-            const date = document.getElementById('modal-act-exc-date').value;
-            if (date && !modalExceptions.includes(date)) {
-                modalExceptions.push(date);
-                renderModalChips();
-                document.getElementById('modal-act-exc-date').value = '';
+            const startInput = document.getElementById('modal-act-exc-date');
+            const endInput = document.getElementById('modal-act-exc-date-end');
+            const startValue = startInput.value;
+            const endValue = endInput.value;
+
+            if (!startValue) return;
+
+            if (endValue && endValue !== startValue) {
+                if (endValue < startValue) {
+                    alert('A data final da exceção deve ser igual ou posterior à data inicial.');
+                    return;
+                }
+                modalExceptions.push({ start: startValue, end: endValue });
+            } else if (!modalExceptions.includes(startValue)) {
+                modalExceptions.push(startValue);
             }
+
+            renderModalChips();
+            startInput.value = '';
+            endInput.value = '';
         };
 
         editModal.classList.remove('hidden');
@@ -2534,6 +2580,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
+        const isValidActivityException = (ex) => {
+            if (typeof ex === 'string') return DATE_RE.test(ex);
+            if (ex && typeof ex === 'object') return DATE_RE.test(ex.start || '') && DATE_RE.test(ex.end || '') && ex.start <= ex.end;
+            return false;
+        };
+
         const activityIds = new Set();
         data.activities.forEach((a, i) => {
             const label = `Atividade ${i + 1}` + (a && a.name ? ` ("${a.name}")` : '');
@@ -2554,7 +2606,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const min = a.minStudents ?? 1;
             if (!Number.isInteger(min) || min < 0) errors.push(`${label}: mínimo de alunos inválido.`);
             else if (Number.isInteger(a.studentsCount) && min > a.studentsCount) errors.push(`${label}: mínimo (${min}) maior que o máximo (${a.studentsCount}).`);
-            if (a.exceptions && (!Array.isArray(a.exceptions) || a.exceptions.some(ex => typeof ex !== 'string' || !DATE_RE.test(ex)))) {
+            if (a.exceptions && (!Array.isArray(a.exceptions) || a.exceptions.some(ex => !isValidActivityException(ex)))) {
                 warnings.push(`${label}: lista de exceções contém datas inválidas.`);
             }
             if (cfg.twoGroupsEnabled && a.activityGroup !== '1' && a.activityGroup !== '2') {

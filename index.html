@@ -150,9 +150,11 @@
                     </div>
 
                     <div class="exceptions-section">
-                        <label>Exceções (Dias em que a atividade não ocorrerá)</label>
+                        <label>Exceções (Dias ou intervalos em que a atividade não ocorrerá)</label>
                         <div class="form-row">
                             <input type="date" id="exception-date">
+                            <span>até (opcional)</span>
+                            <input type="date" id="exception-date-end">
                             <button type="button" id="add-exception-btn" class="secondary-btn">Adicionar Exceção</button>
                         </div>
                         <div id="current-exceptions-list" class="tag-container"></div>
