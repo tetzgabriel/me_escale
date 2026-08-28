@@ -66,6 +66,13 @@ function createSchedulerCore() {
         });
     }
 
+    // Schedule-wide blackout periods ({start, end}, both inclusive): no activity
+    // of any kind is scheduled on a date that falls inside one of these.
+    function isDateBlackedOut(config, dateStr) {
+        if (!config || !Array.isArray(config.blackoutPeriods)) return false;
+        return config.blackoutPeriods.some(bp => bp && bp.start && bp.end && dateStr >= bp.start && dateStr <= bp.end);
+    }
+
     function hasException(student, dateStr, activity) {
         if (!student.exceptions) return false;
         return student.exceptions.some(exc => {
@@ -167,13 +174,15 @@ function createSchedulerCore() {
         let current = new Date(start);
         while (current <= end) {
             const dateStr = toLocalDateStr(current);
-            const dayName = current.toLocaleDateString('en-US', { weekday: 'long' });
+            if (!isDateBlackedOut(config, dateStr)) {
+                const dayName = current.toLocaleDateString('en-US', { weekday: 'long' });
 
-            acts.forEach(a => {
-                if (a.day === dayName && !isActivityExcepted(a, dateStr)) {
-                    uniqueNames.add(normalizeActivityName(a.name));
-                }
-            });
+                acts.forEach(a => {
+                    if (a.day === dayName && !isActivityExcepted(a, dateStr)) {
+                        uniqueNames.add(normalizeActivityName(a.name));
+                    }
+                });
+            }
             current.setDate(current.getDate() + 1);
         }
         return Array.from(uniqueNames);
@@ -189,16 +198,18 @@ function createSchedulerCore() {
         let current = new Date(startDate);
         while (current <= endDate) {
             const dateStr = toLocalDateStr(current);
-            const dayName = current.toLocaleDateString('en-US', { weekday: 'long' });
-            activities.forEach(a => {
-                if (a.day === dayName && !isActivityExcepted(a, dateStr)) {
-                    slots.push({
-                        dateStr,
-                        dayName,
-                        activity: { ...a, normalizedName: normalizeActivityName(a.name) }
-                    });
-                }
-            });
+            if (!isDateBlackedOut(config, dateStr)) {
+                const dayName = current.toLocaleDateString('en-US', { weekday: 'long' });
+                activities.forEach(a => {
+                    if (a.day === dayName && !isActivityExcepted(a, dateStr)) {
+                        slots.push({
+                            dateStr,
+                            dayName,
+                            activity: { ...a, normalizedName: normalizeActivityName(a.name) }
+                        });
+                    }
+                });
+            }
             current.setDate(current.getDate() + 1);
         }
         return slots;
@@ -864,6 +875,7 @@ function createSchedulerCore() {
         checkOverlap,
         hasException,
         isActivityExcepted,
+        isDateBlackedOut,
         getPreferenceScore
     };
 }
@@ -880,6 +892,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const studentForm = document.getElementById('student-form');
     const studentsContainer = document.getElementById('students-container');
     const saveGlobalBtn = document.getElementById('save-global-dates');
+    const addBlackoutBtn = document.getElementById('add-blackout-btn');
+    const currentBlackoutList = document.getElementById('current-blackout-list');
     const addExceptionBtn = document.getElementById('add-exception-btn');
     const currentExceptionsList = document.getElementById('current-exceptions-list');
     const addStudentExceptionBtn = document.getElementById('add-student-exception-btn');
@@ -899,6 +913,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentExceptions = [];
     let currentStudentExceptions = [];
     let currentStudentPreferred = [];
+    let currentBlackoutPeriods = [];
     let rotationConfig = {
         startDate: '',
         endDate: '',
@@ -906,7 +921,8 @@ document.addEventListener('DOMContentLoaded', () => {
         twoGroupsEnabled: false,
         groupNames: ['Grupo 1', 'Grupo 2'],
         requiredHoursGroup1: 0,
-        requiredHoursGroup2: 0
+        requiredHoursGroup2: 0,
+        blackoutPeriods: []
     };
 
     // --- Slow page auto-scroll while dragging a student near the viewport edges ---
@@ -1040,6 +1056,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('group2-name').value = (rotationConfig.groupNames && rotationConfig.groupNames[1]) || 'Grupo 2';
         document.getElementById('group1-hours').value = rotationConfig.requiredHoursGroup1 || '';
         document.getElementById('group2-hours').value = rotationConfig.requiredHoursGroup2 || '';
+        currentBlackoutPeriods = [...(rotationConfig.blackoutPeriods || [])];
+        renderBlackoutChips();
     }
     updateTwoGroupsUI();
 
@@ -1089,8 +1107,50 @@ document.addEventListener('DOMContentLoaded', () => {
         rotationConfig.groupNames = currentGroupNames();
         rotationConfig.requiredHoursGroup1 = parseFloat(document.getElementById('group1-hours').value) || 0;
         rotationConfig.requiredHoursGroup2 = parseFloat(document.getElementById('group2-hours').value) || 0;
+        rotationConfig.blackoutPeriods = [...currentBlackoutPeriods];
         localStorage.setItem('med_rotations_config', JSON.stringify(rotationConfig));
         alert('Configurações da escala salvas!');
+    });
+
+    // Schedule-wide blackout periods: no activity happens for anyone in these date ranges.
+    function renderBlackoutChips() {
+        currentBlackoutList.innerHTML = '';
+        currentBlackoutPeriods.forEach((bp, index) => {
+            const tag = document.createElement('span');
+            tag.className = 'tag exception';
+            tag.innerHTML = `
+                ${bp.start} a ${bp.end}
+                <span class="remove-blackout-tag" data-index="${index}">&times;</span>
+            `;
+            currentBlackoutList.appendChild(tag);
+        });
+
+        document.querySelectorAll('.remove-blackout-tag').forEach(span => {
+            span.onclick = (e) => {
+                const idx = parseInt(e.target.getAttribute('data-index'));
+                currentBlackoutPeriods.splice(idx, 1);
+                renderBlackoutChips();
+            };
+        });
+    }
+
+    addBlackoutBtn.addEventListener('click', () => {
+        const startInput = document.getElementById('blackout-start');
+        const endInput = document.getElementById('blackout-end');
+        const startValue = startInput.value;
+        let endValue = endInput.value || startValue;
+
+        if (!startValue) return;
+
+        if (endValue < startValue) {
+            alert('A data final do período deve ser igual ou posterior à data inicial.');
+            return;
+        }
+
+        currentBlackoutPeriods.push({ start: startValue, end: endValue });
+        renderBlackoutChips();
+        startInput.value = '';
+        endInput.value = '';
     });
 
     // Activity exceptions can be a single date ("YYYY-MM-DD") or an interval
@@ -2568,6 +2628,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (cfg.requiredHours != null && (typeof cfg.requiredHours !== 'number' || cfg.requiredHours < 0)) {
             warnings.push('Config: meta de horas inválida — será tratada como 0.');
         }
+        if (cfg.blackoutPeriods != null) {
+            const isValidBlackoutPeriod = (bp) => bp && typeof bp === 'object' &&
+                DATE_RE.test(bp.start || '') && DATE_RE.test(bp.end || '') && bp.start <= bp.end;
+            if (!Array.isArray(cfg.blackoutPeriods) || cfg.blackoutPeriods.some(bp => !isValidBlackoutPeriod(bp))) {
+                warnings.push('Config: lista de períodos sem atividades contém datas inválidas e será ignorada.');
+            }
+        }
         if (cfg.twoGroupsEnabled) {
             if (!Array.isArray(cfg.groupNames) || cfg.groupNames.length !== 2) {
                 warnings.push('Config: nomes dos grupos de atividade ausentes ou inválidos — serão tratados como "Grupo 1"/"Grupo 2".');
@@ -2842,6 +2909,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('group2-name').value = (rotationConfig.groupNames && rotationConfig.groupNames[1]) || 'Grupo 2';
                     document.getElementById('group1-hours').value = rotationConfig.requiredHoursGroup1 || '';
                     document.getElementById('group2-hours').value = rotationConfig.requiredHoursGroup2 || '';
+                    currentBlackoutPeriods = [...(rotationConfig.blackoutPeriods || [])];
+                    renderBlackoutChips();
                     updateTwoGroupsUI();
                     renderStudents();
 
@@ -2915,7 +2984,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 twoGroupsEnabled: false,
                 groupNames: ['Grupo 1', 'Grupo 2'],
                 requiredHoursGroup1: 0,
-                requiredHoursGroup2: 0
+                requiredHoursGroup2: 0,
+                blackoutPeriods: []
             };
             lastGeneratedSchedule = null;
             pinnedAssignments = [];
@@ -2923,6 +2993,7 @@ document.addEventListener('DOMContentLoaded', () => {
             currentExceptions = [];
             currentStudentExceptions = [];
             currentStudentPreferred = [];
+            currentBlackoutPeriods = [];
 
             // Update UI
             document.getElementById('rotation-start').value = '';
@@ -2942,6 +3013,7 @@ document.addEventListener('DOMContentLoaded', () => {
             renderExceptionChips();
             renderStudentExceptionChips();
             renderStudentPreferredChips();
+            renderBlackoutChips();
             
             resultsContainer.classList.add('hidden');
             

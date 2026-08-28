@@ -73,6 +73,17 @@
                     <input type="number" id="group2-hours" min="0" step="0.5" placeholder="ex: 40">
                 </div>
             </div>
+            <div class="exceptions-section">
+                <label>Períodos sem Atividades (recesso, feriados etc.)</label>
+                <p class="field-hint">Nesses intervalos, nenhuma atividade será agendada para ninguém.</p>
+                <div class="form-row">
+                    <input type="date" id="blackout-start">
+                    <span>até</span>
+                    <input type="date" id="blackout-end">
+                    <button type="button" id="add-blackout-btn" class="secondary-btn">Adicionar Período</button>
+                </div>
+                <div id="current-blackout-list" class="tag-container"></div>
+            </div>
             <button type="button" id="save-global-dates">💾 Salvar Configurações</button>
         </section>
 
@@ -294,6 +305,7 @@
                         <li><strong>Sem Sobreposições:</strong> Um aluno nunca será alocado em duas atividades que ocorrem no mesmo horário.</li>
                         <li><strong>Exceções Respeitadas:</strong> O algoritmo nunca alocará um aluno em datas ou horários marcados como suas exceções.</li>
                         <li><strong>Atividades Suspensas:</strong> Atividades não são agendadas em datas marcadas como exceção da própria atividade.</li>
+                        <li><strong>Períodos sem Atividades:</strong> Nenhuma atividade é agendada, para nenhum aluno, durante os períodos de recesso/feriado configurados na seção de Período.</li>
                         <li><strong>Descanso entre Plantões:</strong> Alunos que realizam um <strong>PLANTÃO</strong> não serão alocados para outro <strong>PLANTÃO</strong> no mesmo dia, no dia anterior ou no dia seguinte (regra de 24h de intervalo).</li>
                         <li><strong>Atribuições Fixadas (📌):</strong> Alunos movidos manualmente no calendário (ou fixados pelo ícone 📌) são preservados quando a escala é gerada novamente.</li>
                         <li><strong>Equilíbrio de Carga Horária:</strong> O algoritmo busca distribuir as horas de forma que todos cheguem o mais próximo possível da meta definida.</li>

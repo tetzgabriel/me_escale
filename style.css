@@ -454,6 +454,12 @@ button:active {
     color: var(--text);
 }
 
+.field-hint {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin: 0 0 10px;
+}
+
 .tag-container {
     display: flex;
     flex-wrap: wrap;
