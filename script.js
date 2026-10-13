@@ -104,6 +104,34 @@ function createSchedulerCore() {
         return checkDay(-1) || checkDay(1);
     }
 
+    // Overnight shifts (e.g. 19:00-07:00) end after midnight, on the following day.
+    function isOvernight(startTime, endTime) {
+        return !!startTime && !!endTime && endTime <= startTime;
+    }
+
+    // After an overnight shift the student rests through the next morning: activities
+    // starting before this time on the following day are off-limits.
+    const MORNING_REST_CUTOFF = '12:00';
+
+    // True when placing `activity` on `dateStr` collides with an overnight shift's morning
+    // rest, in either direction: a morning activity right after the student's night shift,
+    // or a night shift right before the student's morning activity.
+    function hasOvernightRestConflict(studentId, dateStr, activity, allDailyAssignments) {
+        if (!allDailyAssignments) return false;
+
+        if (activity.startTime < MORNING_REST_CUTOFF) {
+            const prev = allDailyAssignments[getAdjacentDateStr(dateStr, -1)];
+            if (prev && prev.some(as => as.studentId === studentId && isOvernight(as.startTime, as.endTime))) return true;
+        }
+
+        if (isOvernight(activity.startTime, activity.endTime)) {
+            const next = allDailyAssignments[getAdjacentDateStr(dateStr, 1)];
+            if (next && next.some(as => as.studentId === studentId && as.startTime < MORNING_REST_CUTOFF)) return true;
+        }
+
+        return false;
+    }
+
     function isStudentEligible(student, dateStr, activity, allDailyAssignments) {
         if (hasException(student, dateStr, activity)) return false;
 
@@ -118,6 +146,9 @@ function createSchedulerCore() {
             if (hasPlantaoSameDay) return false;
             if (hasPlantaoOnAdjacentDay(student.id, dateStr, allDailyAssignments)) return false;
         }
+
+        // Rest rule: no morning activity right after a night shift (any activity type)
+        if (hasOvernightRestConflict(student.id, dateStr, activity, allDailyAssignments)) return false;
 
         return true;
     }
@@ -509,6 +540,7 @@ function createSchedulerCore() {
                             if (hasException(s, dateStr, slot.activity)) rejectedException++;
                             else if (hasOverlap(s, dateStr, slot.activity, dailyAssignments[dateStr])) rejectedOverlap++;
                             else if (isPlantao(slot.activity.type) && hasPlantaoOnAdjacentDay(s.id, dateStr, dailyAssignments)) rejectedBackToBack++;
+                            else if (hasOvernightRestConflict(s.id, dateStr, slot.activity, dailyAssignments)) rejectedBackToBack++;
                         });
 
                         if (slot.assignedIds.length === 0) {
@@ -772,6 +804,17 @@ function createSchedulerCore() {
                     return false;
                 }
 
+                // Overnight rest: mirrors hasOvernightRestConflict, over the finished schedule
+                const nightRestConflict = (adjOffset, matches) => {
+                    const adjDay = dayByDate[getAdjacentDateStr(date, adjOffset)];
+                    return !!adjDay && adjDay.slots.some(s =>
+                        !ignoredSlots.includes(s) && s.assigned.includes(name) && matches(s.activity));
+                };
+                if (activity.startTime < MORNING_REST_CUTOFF &&
+                    nightRestConflict(-1, a => isOvernight(a.startTime, a.endTime))) return false;
+                if (isOvernight(activity.startTime, activity.endTime) &&
+                    nightRestConflict(1, a => a.startTime < MORNING_REST_CUTOFF)) return false;
+
                 if (isPlantao(activity.type)) {
                     for (const offset of [-1, 0, 1]) {
                         const adjDay = dayByDate[getAdjacentDateStr(date, offset)];
@@ -871,6 +914,8 @@ function createSchedulerCore() {
         shuffleArray,
         getAdjacentDateStr,
         isPlantao,
+        isOvernight,
+        MORNING_REST_CUTOFF,
         normalizeActivityName,
         checkOverlap,
         hasException,
@@ -883,7 +928,8 @@ function createSchedulerCore() {
 const SchedulerCore = createSchedulerCore();
 const {
     isPlantao, normalizeActivityName, toLocalDateStr, formatDateBR,
-    getAdjacentDateStr, hasException, checkOverlap, calculateMandatoryActivities
+    getAdjacentDateStr, hasException, checkOverlap, calculateMandatoryActivities,
+    isOvernight, MORNING_REST_CUTOFF
 } = SchedulerCore;
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -2162,6 +2208,30 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             if (hasPlantaoConflict(-1) || hasPlantaoConflict(0) || hasPlantaoConflict(1)) {
                 if (!confirm(`${studentName} já possui um PLANTÃO no mesmo dia, no dia anterior ou posterior. Deseja forçar esta atribuição?`)) {
+                    return;
+                }
+            }
+        }
+
+        // 2.6 Check overnight rest rule (no morning activity right after a night shift)
+        {
+            const nightRestConflict = (offset, matches) => {
+                const adjDate = getAdjacentDateStr(targetDate, offset);
+                const adjDay = finalSchedule.find(d => d.date === adjDate);
+                if (!adjDay) return false;
+                return adjDay.slots.some(s =>
+                    s !== targetSlot &&
+                    !isSourceSlot(adjDate, s) &&
+                    s.assigned.includes(studentName) && matches(s.activity)
+                );
+            };
+            const act = targetSlot.activity;
+            const afterNight = act.startTime < MORNING_REST_CUTOFF &&
+                nightRestConflict(-1, a => isOvernight(a.startTime, a.endTime));
+            const beforeMorning = isOvernight(act.startTime, act.endTime) &&
+                nightRestConflict(1, a => a.startTime < MORNING_REST_CUTOFF);
+            if (afterNight || beforeMorning) {
+                if (!confirm(`${studentName} ${afterNight ? 'fez plantão noturno na noite anterior' : 'tem atividade na manhã seguinte ao plantão noturno'}. Deseja forçar esta atribuição?`)) {
                     return;
                 }
             }

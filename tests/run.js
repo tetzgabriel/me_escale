@@ -204,6 +204,16 @@ async function main() {
         });
     });
 
+    // 3b. Descanso pós-plantão noturno: nada de manhã (antes das 12:00) no dia seguinte
+    Object.entries(byStudentDay).forEach(([name, days]) => {
+        Object.entries(days).forEach(([date, slots]) => {
+            if (!slots.some(s => s.activity.endTime <= s.activity.startTime)) return;
+            const next = days[addDays(date, 1)] || [];
+            next.filter(s => s.activity.startTime < '12:00').forEach(s =>
+                errors.push(`DESCANSO NOTURNO: ${name} em ${addDays(date, 1)}: ${s.activity.name} ${s.activity.startTime}`));
+        });
+    });
+
     // 4. Exceções dos alunos respeitadas (fixações são a única exceção permitida)
     const studentByName = {};
     backup.students.forEach(s => { studentByName[s.name] = s; });
