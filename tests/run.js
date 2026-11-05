@@ -104,7 +104,7 @@ global.document = {
     createElement() { return makeElement(); },
     body: makeElement('body'),
 };
-global.window = {};
+global.window = { addEventListener() {} };
 global.alert = () => {};
 global.confirm = () => true;
 

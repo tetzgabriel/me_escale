@@ -658,6 +658,9 @@ function createSchedulerCore() {
             return { finalSchedule, studentStats };
         }
 
+        // Sem nenhum PLANTÃO cadastrado, a garantia de plantão não se aplica
+        const anyPlantaoActivity = activities.some(a => isPlantao(a.type));
+
         function calculateScore({ finalSchedule, studentStats }) {
             let emptyCount = 0;
             let understaffedPenalty = 0;
@@ -720,7 +723,7 @@ function createSchedulerCore() {
                 coveragePenalty += (missingCount * 10);
 
                 // Penalty for missing Plantao
-                if (!stat.hasPlantao) coveragePenalty += 100;
+                if (anyPlantaoActivity && !stat.hasPlantao) coveragePenalty += 100;
 
                 // Penalty for finishing below the required hours target. In two-group mode this is
                 // the sum of each group's own shortfall — a student who's over on one group and
@@ -932,7 +935,392 @@ const {
     isOvernight, MORNING_REST_CUTOFF
 } = SchedulerCore;
 
+// =====================================================================
+// Formato brasileiro: datas dd/mm/aaaa e relógio 24h na tela.
+// Internamente (estado, localStorage e backups JSON) continua tudo em
+// AAAA-MM-DD e HH:MM, então backups antigos seguem compatíveis.
+// =====================================================================
+
+// Aceita AAAA-MM-DD, dd/mm/aaaa, d/m/aa, ddmmaaaa (também com "-" ou "."). Retorna AAAA-MM-DD ou null.
+function parseDateBR(input) {
+    if (input == null) return null;
+    const s = String(input).trim();
+    if (!s) return null;
+    let y, m, d, match;
+    if ((match = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})(?:T.*)?$/))) {
+        [, y, m, d] = match;
+    } else if ((match = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2}|\d{4})$/))) {
+        [, d, m, y] = match;
+    } else if ((match = s.match(/^(\d{2})(\d{2})(\d{4})$/))) {
+        [, d, m, y] = match;
+    } else {
+        return null;
+    }
+    y = Number(y.length === 2 ? '20' + y : y);
+    m = Number(m);
+    d = Number(d);
+    const dt = new Date(y, m - 1, d);
+    if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d) return null;
+    return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+// Aceita 7, 07, 7:30, 0730, 7h, 7h30, 7:30 PM, 07:00:00... Retorna HH:MM (24h) ou null.
+function parseTime24(input) {
+    if (input == null) return null;
+    let s = String(input).trim().toLowerCase().replace(/\s+/g, '');
+    if (!s) return null;
+    let ampm = null;
+    const ap = s.match(/(a|p)\.?m\.?$/);
+    if (ap) { ampm = ap[1]; s = s.slice(0, ap.index); }
+    let h, mi, match;
+    if ((match = s.match(/^(\d{1,2})(?:[:h.](\d{2})?(?::\d{2})?)?(?:min)?$/))) {
+        h = Number(match[1]); mi = Number(match[2] || 0);
+    } else if ((match = s.match(/^(\d{1,2})(\d{2})$/))) {
+        h = Number(match[1]); mi = Number(match[2]);
+    } else {
+        return null;
+    }
+    if (ampm) {
+        if (h < 1 || h > 12) return null;
+        if (ampm === 'a' && h === 12) h = 0;
+        if (ampm === 'p' && h !== 12) h += 12;
+    }
+    if (h > 23 || mi > 59) return null;
+    return `${String(h).padStart(2, '0')}:${String(mi).padStart(2, '0')}`;
+}
+
+// Converte (in place) qualquer data/horário de um backup ou do localStorage para AAAA-MM-DD / HH:MM.
+// Valores irreconhecíveis ficam como estão para a validação apontar o problema.
+function normalizeBackupFormats(data) {
+    if (!data || typeof data !== 'object') return data;
+    const fixDate = (v) => (typeof v === 'string' && parseDateBR(v)) || v;
+    const fixTime = (v) => (typeof v === 'string' && v.trim() !== '' && parseTime24(v)) || v;
+    const fixRange = (r) => { if (r && typeof r === 'object') { r.start = fixDate(r.start); r.end = fixDate(r.end ?? r.start); } return r; };
+    const fixActivity = (a) => {
+        if (!a || typeof a !== 'object') return;
+        a.startTime = fixTime(a.startTime);
+        a.endTime = fixTime(a.endTime);
+        if (Array.isArray(a.exceptions)) a.exceptions = a.exceptions.map(ex => typeof ex === 'string' ? fixDate(ex) : fixRange(ex));
+    };
+    const fixStudentDates = (list) => Array.isArray(list) ? list.map(e => {
+        if (typeof e === 'string') return fixDate(e);
+        if (e && typeof e === 'object') { e.date = fixDate(e.date); e.startTime = fixTime(e.startTime); e.endTime = fixTime(e.endTime); }
+        return e;
+    }) : list;
+
+    const cfg = data.config;
+    if (cfg && typeof cfg === 'object') {
+        cfg.startDate = fixDate(cfg.startDate);
+        cfg.endDate = fixDate(cfg.endDate);
+        if (Array.isArray(cfg.blackoutPeriods)) cfg.blackoutPeriods.forEach(fixRange);
+    }
+    if (Array.isArray(data.activities)) data.activities.forEach(fixActivity);
+    if (Array.isArray(data.students)) data.students.forEach(s => {
+        if (!s || typeof s !== 'object') return;
+        s.exceptions = fixStudentDates(s.exceptions);
+        s.preferredDates = fixStudentDates(s.preferredDates);
+    });
+    if (Array.isArray(data.pinnedAssignments)) data.pinnedAssignments.forEach(p => { if (p && typeof p === 'object') p.date = fixDate(p.date); });
+    const sched = data.lastGeneratedSchedule;
+    if (sched && Array.isArray(sched.finalSchedule)) sched.finalSchedule.forEach(day => {
+        if (!day || typeof day !== 'object') return;
+        day.date = fixDate(day.date);
+        (day.slots || []).forEach(slot => slot && fixActivity(slot.activity));
+    });
+    return data;
+}
+
+// Rótulo de horário opcional "(HH:MM-HH:MM)" usado nas tags de exceção/preferência
+function formatTimeRangeSuffix(item) {
+    return (item && item.startTime && item.endTime) ? ` (${item.startTime}-${item.endTime})` : '';
+}
+
+// Troca os <input type="date|time"> nativos (que seguem o idioma do navegador, ex. mm/dd/yyyy e AM/PM)
+// por campos de texto dd/mm/aaaa e HH:MM. A propriedade .value continua lendo/gravando AAAA-MM-DD e HH:MM,
+// então o restante do código não precisa saber da troca.
+function enhanceBrazilianInputs(root) {
+    if (typeof HTMLInputElement === 'undefined' || !root || !root.querySelectorAll) return;
+    const nativeValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+    if (!nativeValue) return;
+
+    root.querySelectorAll('input[type="date"]:not([data-br-input]), input[type="time"]:not([data-br-input])').forEach(el => {
+        if (el.classList.contains('br-date-picker-native')) return;
+        const kind = el.type;
+        const initial = nativeValue.get.call(el);
+        el.setAttribute('data-br-input', kind);
+        el.type = 'text';
+        el.inputMode = 'numeric';
+        el.autocomplete = 'off';
+        el.classList.add(kind === 'date' ? 'br-date-input' : 'br-time-input');
+        if (kind === 'date') {
+            el.placeholder = 'dd/mm/aaaa';
+            el.maxLength = 10;
+            el.title = 'Data no formato dd/mm/aaaa';
+        } else {
+            el.placeholder = 'hh:mm';
+            el.maxLength = 5;
+            el.title = 'Horário 24h no formato hh:mm (ex.: 07:00, 19:00)';
+        }
+
+        const parse = kind === 'date' ? parseDateBR : parseTime24;
+        const display = (canon) => kind === 'date' ? formatDateBR(canon) : canon;
+        Object.defineProperty(el, 'value', {
+            configurable: true,
+            get() { return parse(nativeValue.get.call(el)) || ''; },
+            set(v) {
+                const canon = parse(v);
+                nativeValue.set.call(el, canon ? display(canon) : (v == null ? '' : String(v)));
+                el.setCustomValidity('');
+            }
+        });
+        el.value = initial;
+
+        // Máscara leve: só caracteres válidos e separador automático ao digitar
+        el.addEventListener('input', (e) => {
+            if (e.inputType && e.inputType.startsWith('delete')) return;
+            let t = nativeValue.get.call(el);
+            if (kind === 'date') {
+                t = t.replace(/[^\d/]/g, '').replace(/\/{2,}/g, '/');
+                if (/^\d{3,8}$/.test(t)) t = t.replace(/^(\d{2})(\d{1,2})?(\d{1,4})?$/, (_, d, m, y) => [d, m, y].filter(Boolean).join('/'));
+                if (/^\d{2}$/.test(t) || /^\d{1,2}\/\d{2}$/.test(t)) t += '/';
+            } else {
+                t = t.replace(/[^\d:]/g, '').replace(/:{2,}/g, ':');
+                if (/^\d{3,4}$/.test(t)) t = t.slice(0, 2) + ':' + t.slice(2);
+                if (/^\d{2}$/.test(t) && Number(t) <= 23) t += ':';
+            }
+            nativeValue.set.call(el, t);
+        });
+
+        // Ao sair do campo, completa (ex.: 6/11/26 → 06/11/2026, 7 → 07:00) ou marca como inválido
+        el.addEventListener('blur', () => {
+            const raw = nativeValue.get.call(el).trim();
+            if (!raw) { el.setCustomValidity(''); return; }
+            const canon = parse(raw);
+            if (canon) {
+                nativeValue.set.call(el, display(canon));
+                el.setCustomValidity('');
+            } else {
+                el.setCustomValidity(kind === 'date' ? 'Use o formato dd/mm/aaaa.' : 'Use o formato 24h hh:mm (ex.: 07:00).');
+                el.reportValidity();
+            }
+        });
+
+        // Botão de calendário: abre o seletor nativo e devolve a data no formato brasileiro
+        if (kind === 'date') {
+            const wrap = document.createElement('span');
+            wrap.className = 'br-date-field';
+            el.parentNode.insertBefore(wrap, el);
+            wrap.appendChild(el);
+            const native = document.createElement('input');
+            native.type = 'date';
+            native.tabIndex = -1;
+            native.className = 'br-date-picker-native';
+            native.setAttribute('aria-hidden', 'true');
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'br-date-picker-btn';
+            btn.title = 'Abrir calendário';
+            btn.setAttribute('aria-label', 'Abrir calendário');
+            btn.textContent = '📅';
+            wrap.appendChild(btn);
+            wrap.appendChild(native);
+            btn.addEventListener('click', () => {
+                nativeValue.set.call(native, el.value);
+                try { native.showPicker(); } catch (err) { native.focus(); native.click(); }
+            });
+            native.addEventListener('change', () => {
+                el.value = nativeValue.get.call(native);
+                el.dispatchEvent(new Event('input', { bubbles: true }));
+                el.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+        }
+    });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+    // Campos de data/hora no formato brasileiro, inclusive os criados depois (modais de edição)
+    enhanceBrazilianInputs(document);
+    if (typeof MutationObserver !== 'undefined' && document.body) {
+        new MutationObserver(() => enhanceBrazilianInputs(document)).observe(document.body, { childList: true, subtree: true });
+    }
+
+    // =================================================================
+    // Avisos e confirmações dentro do app. Substituem alert()/confirm() do
+    // navegador, que mostram "file://" e travam a página.
+    // =================================================================
+    const toastContainer = document.getElementById('toast-container');
+
+    // type: 'info' | 'success' | 'error' | 'warning'. Opcional: um botão de ação (ex.: "Desfazer").
+    function showToast(message, { type = 'info', actionLabel = '', onAction = null, duration } = {}) {
+        if (!toastContainer || typeof document.createElement !== 'function') return () => {};
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
+        const text = document.createElement('div');
+        text.className = 'toast-text';
+        text.textContent = message;
+        toast.appendChild(text);
+        let timer = null;
+        const close = () => {
+            clearTimeout(timer);
+            if (toast.parentNode) toast.parentNode.removeChild(toast);
+        };
+        if (actionLabel && typeof onAction === 'function') {
+            const action = document.createElement('button');
+            action.type = 'button';
+            action.className = 'toast-action';
+            action.textContent = actionLabel;
+            action.addEventListener('click', () => { close(); onAction(); });
+            toast.appendChild(action);
+        }
+        const closeBtn = document.createElement('button');
+        closeBtn.type = 'button';
+        closeBtn.className = 'toast-close';
+        closeBtn.setAttribute('aria-label', 'Fechar aviso');
+        closeBtn.textContent = '×';
+        closeBtn.addEventListener('click', close);
+        toast.appendChild(closeBtn);
+        toastContainer.appendChild(toast);
+        timer = setTimeout(close, duration ?? (type === 'error' ? 9000 : actionLabel ? 8000 : 4500));
+        return close;
+    }
+
+    // Confirmação dentro do app. Resolve true (confirmou) ou false (cancelou/fechou).
+    // extraLabel/onExtra: um terceiro botão que executa algo sem fechar (ex.: "Baixar backup antes").
+    const confirmModal = document.getElementById('confirm-modal');
+    let confirmDialogOpen = false;
+    function askConfirm({ title = 'Confirmar', message = '', details = [], confirmLabel = 'Confirmar',
+                          cancelLabel = 'Cancelar', danger = false, extraLabel = '', onExtra = null } = {}) {
+        if (!confirmModal || typeof confirmModal.querySelector !== 'function' || !document.getElementById('confirm-ok').addEventListener) {
+            return Promise.resolve(typeof confirm === 'function' ? confirm(`${title}\n\n${message}`) : true);
+        }
+        return new Promise(resolve => {
+            const okBtn = document.getElementById('confirm-ok');
+            const cancelBtn = document.getElementById('confirm-cancel');
+            const extraBtn = document.getElementById('confirm-extra');
+            const list = document.getElementById('confirm-details');
+            document.getElementById('confirm-title').textContent = title;
+            document.getElementById('confirm-message').textContent = message;
+            list.innerHTML = '';
+            details.forEach(d => { const li = document.createElement('li'); li.textContent = d; list.appendChild(li); });
+            list.classList.toggle('hidden', details.length === 0);
+            okBtn.textContent = confirmLabel;
+            okBtn.classList.toggle('danger-btn', !!danger);
+            cancelBtn.textContent = cancelLabel;
+            extraBtn.textContent = extraLabel;
+            extraBtn.classList.toggle('hidden', !extraLabel);
+
+            const previouslyFocused = document.activeElement;
+            const finish = (result) => {
+                confirmModal.classList.add('hidden');
+                confirmDialogOpen = false;
+                okBtn.onclick = cancelBtn.onclick = extraBtn.onclick = confirmModal.onclick = null;
+                document.removeEventListener('keydown', onKey, true);
+                if (previouslyFocused && typeof previouslyFocused.focus === 'function') previouslyFocused.focus();
+                resolve(result);
+            };
+            const onKey = (e) => {
+                if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(false); }
+            };
+            okBtn.onclick = () => finish(true);
+            cancelBtn.onclick = () => finish(false);
+            extraBtn.onclick = () => { if (typeof onExtra === 'function') onExtra(); };
+            confirmModal.onclick = (e) => { if (e.target === confirmModal) finish(false); };
+            document.addEventListener('keydown', onKey, true);
+
+            confirmDialogOpen = true;
+            confirmModal.classList.remove('hidden');
+            (danger ? cancelBtn : okBtn).focus();
+        });
+    }
+
+    // localStorage pode falhar (modo anônimo, bloqueio): preferências de tela não podem quebrar o app
+    const prefs = {
+        get(key) { try { return localStorage.getItem(key); } catch (e) { return null; } },
+        set(key, value) { try { localStorage.setItem(key, value); } catch (e) { /* ignora */ } },
+        remove(key) { try { localStorage.removeItem(key); } catch (e) { /* ignora */ } }
+    };
+
+    // ---------- Guia "Como usar" (pode ser escondido e reaberto pelo "❓ Ajuda") ----------
+    const guideCard = document.getElementById('guia');
+    function setGuideVisible(visible) {
+        if (!guideCard || !guideCard.classList) return;
+        guideCard.classList.toggle('hidden', !visible);
+        if (visible) prefs.remove('med_rotations_guide_hidden');
+        else prefs.set('med_rotations_guide_hidden', '1');
+    }
+    if (guideCard && guideCard.classList && prefs.get('med_rotations_guide_hidden') === '1') guideCard.classList.add('hidden');
+    const hideGuideBtn = document.getElementById('hide-guide-btn');
+    if (hideGuideBtn && hideGuideBtn.addEventListener) {
+        hideGuideBtn.addEventListener('click', () => {
+            setGuideVisible(false);
+            showToast('Guia escondido. Para ver de novo, clique em "❓ Ajuda" no topo.');
+        });
+    }
+    const showGuideLink = document.getElementById('show-guide-link');
+    if (showGuideLink && showGuideLink.addEventListener) {
+        showGuideLink.addEventListener('click', () => setGuideVisible(true));
+    }
+
+    // ---------- Progresso: ✓ nos passos concluídos (guia, números das seções e menu) ----------
+    function updateProgress() {
+        let schedule = null;
+        try { schedule = lastGeneratedSchedule; } catch (e) { schedule = null; }
+        const done = {
+            periodo: !!(rotationConfig.startDate && rotationConfig.endDate),
+            atividades: activities.length > 0,
+            alunos: students.length > 0,
+            gerar: !!schedule
+        };
+        const sectionOf = { periodo: 'section-periodo', atividades: 'section-atividades', alunos: 'section-alunos', gerar: 'section-gerar' };
+        Object.keys(done).forEach((step, i) => {
+            const li = guideCard && guideCard.querySelector ? guideCard.querySelector(`[data-step="${step}"]`) : null;
+            if (li && li.classList) li.classList.toggle('done', done[step]);
+            const section = document.getElementById(sectionOf[step]);
+            const badge = section && section.querySelector ? section.querySelector('.step-badge') : null;
+            if (badge && badge.classList) {
+                badge.classList.toggle('done', done[step]);
+                badge.textContent = done[step] ? '✓' : String(i + 1);
+                badge.title = done[step] ? 'Passo concluído' : '';
+            }
+        });
+    }
+
+    // ---------- Aviso de escala desatualizada ----------
+    function markScheduleStale() {
+        let schedule = null;
+        try { schedule = lastGeneratedSchedule; } catch (e) { return; }
+        if (!schedule) return;
+        prefs.set('med_rotations_schedule_stale', '1');
+        const banner = document.getElementById('stale-banner');
+        if (banner && banner.classList) banner.classList.remove('hidden');
+    }
+    function markScheduleFresh() {
+        prefs.remove('med_rotations_schedule_stale');
+        const banner = document.getElementById('stale-banner');
+        if (banner && banner.classList) banner.classList.add('hidden');
+    }
+
+    function escapeHtml(v) {
+        return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    // Rótulo amigável do tipo (o valor salvo continua "PLANTÃO"/"AMBULATORIO")
+    function typeLabel(type) {
+        return isPlantao(type) ? 'Plantão' : 'Ambulatório';
+    }
+
+    // Texto bruto digitado em um campo de data/hora (o .value só devolve datas válidas)
+    function typedText(el) {
+        if (!el) return '';
+        try {
+            const desc = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+            return String(desc.get.call(el) || '').trim();
+        } catch (e) {
+            return String(el.value || '').trim();
+        }
+    }
+
     const activityForm = document.getElementById('activity-form');
     const activitiesContainer = document.getElementById('activities-container');
     const studentForm = document.getElementById('student-form');
@@ -951,7 +1339,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const editModal = document.getElementById('edit-modal');
     const modalTitle = document.getElementById('modal-title');
     const modalBody = document.getElementById('modal-body');
-    const closeModal = document.querySelector('.close-modal');
+    const closeModal = editModal.querySelector('.close-modal');
 
     // Data state
     let activities = [];
@@ -1066,6 +1454,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const savedActivities = localStorage.getItem('med_rotations_activities');
     if (savedActivities) {
         activities = JSON.parse(savedActivities);
+        normalizeBackupFormats({ activities });
         // Ensure all activities have a type (for backward compatibility) and trim names
         activities.forEach(a => {
             if (!a.type) a.type = 'PLANTÃO';
@@ -1076,6 +1465,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const savedStudents = localStorage.getItem('med_rotations_students');
     if (savedStudents) {
         students = JSON.parse(savedStudents);
+        normalizeBackupFormats({ students });
         // Ensure all students have a color and affinity group
         let updated = false;
         students.forEach(s => {
@@ -1094,6 +1484,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const savedConfig = localStorage.getItem('med_rotations_config');
     if (savedConfig) {
         rotationConfig = JSON.parse(savedConfig);
+        normalizeBackupFormats({ config: rotationConfig });
         document.getElementById('rotation-start').value = rotationConfig.startDate || '';
         document.getElementById('rotation-end').value = rotationConfig.endDate || '';
         document.getElementById('required-hours').value = rotationConfig.requiredHours || '';
@@ -1134,6 +1525,18 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Em telas largas as listas ficam ao lado dos formulários: começam abertas
+    if (typeof window.matchMedia === 'function' && window.matchMedia('(min-width: 1200px)').matches) {
+        [['toggle-activities', 'activities-container'], ['toggle-students', 'students-container']].forEach(([btnId, contentId]) => {
+            const btn = document.getElementById(btnId);
+            const content = document.getElementById(contentId);
+            if (btn && content && content.classList.contains('hidden')) {
+                btn.classList.add('active');
+                content.classList.remove('hidden');
+            }
+        });
+    }
+
     // Toggle Rules List
     const toggleRulesBtn = document.getElementById('toggle-rules');
     if (toggleRulesBtn) {
@@ -1144,8 +1547,55 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Global dates handler
-    saveGlobalBtn.addEventListener('click', () => {
+    // Configurações do período: salvam sozinhas ao mudar qualquer campo (o botão continua existindo)
+    const configStatus = document.getElementById('config-save-status');
+    let configStatusTimer = null;
+    function flashConfigSaved(text = '✓ Salvo automaticamente') {
+        if (!configStatus) return;
+        configStatus.textContent = text;
+        configStatus.classList.add('visible');
+        clearTimeout(configStatusTimer);
+        configStatusTimer = setTimeout(() => configStatus.classList.remove('visible'), 2500);
+    }
+
+    // Adiciona um período sem atividades que foi digitado mas não "Adicionado"
+    function commitPendingBlackout() {
+        const startEl = document.getElementById('blackout-start');
+        if (!typedText(startEl)) return true;
+        return addBlackoutFromInputs();
+    }
+
+    function saveConfig({ announce = false } = {}) {
+        const startEl = document.getElementById('rotation-start');
+        const endEl = document.getElementById('rotation-end');
+        // Data digitada pela metade/errada: não salva por cima do valor anterior
+        if ((typedText(startEl) && !startEl.value) || (typedText(endEl) && !endEl.value)) {
+            if (announce) showToast('Confira as datas do período: use o formato dd/mm/aaaa.', { type: 'error' });
+            return false;
+        }
+        if (startEl.value && endEl.value && endEl.value < startEl.value) {
+            showToast('A data de término precisa ser depois da data de início.', { type: 'error' });
+            return false;
+        }
+        // Feriado digitado e não "adicionado" só entra no clique em Salvar (no autosave ele ainda pode estar sendo digitado)
+        if (announce && !commitPendingBlackout()) return false;
+        saveConfigValues();
+        if (announce) showToast('✅ Configurações salvas.', { type: 'success' });
+        else flashConfigSaved();
+        markScheduleStale();
+        updateProgress();
+        return true;
+    }
+
+    ['rotation-start', 'rotation-end', 'required-hours', 'two-groups-toggle', 'group1-name', 'group1-hours', 'group2-name', 'group2-hours']
+        .forEach(id => {
+            const el = document.getElementById(id);
+            if (el && el.addEventListener) el.addEventListener('change', () => saveConfig());
+        });
+
+    saveGlobalBtn.addEventListener('click', () => saveConfig({ announce: true }));
+
+    function saveConfigValues() {
         rotationConfig.startDate = document.getElementById('rotation-start').value;
         rotationConfig.endDate = document.getElementById('rotation-end').value;
         rotationConfig.requiredHours = parseFloat(document.getElementById('required-hours').value) || 0;
@@ -1155,8 +1605,7 @@ document.addEventListener('DOMContentLoaded', () => {
         rotationConfig.requiredHoursGroup2 = parseFloat(document.getElementById('group2-hours').value) || 0;
         rotationConfig.blackoutPeriods = [...currentBlackoutPeriods];
         localStorage.setItem('med_rotations_config', JSON.stringify(rotationConfig));
-        alert('Configurações da escala salvas!');
-    });
+    }
 
     // Schedule-wide blackout periods: no activity happens for anyone in these date ranges.
     function renderBlackoutChips() {
@@ -1165,8 +1614,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const tag = document.createElement('span');
             tag.className = 'tag exception';
             tag.innerHTML = `
-                ${bp.start} a ${bp.end}
-                <span class="remove-blackout-tag" data-index="${index}">&times;</span>
+                ${bp.start === bp.end ? formatDateBR(bp.start) : `${formatDateBR(bp.start)} a ${formatDateBR(bp.end)}`}
+                <span class="remove-blackout-tag" data-index="${index}" role="button" title="Remover">&times;</span>
             `;
             currentBlackoutList.appendChild(tag);
         });
@@ -1176,48 +1625,76 @@ document.addEventListener('DOMContentLoaded', () => {
                 const idx = parseInt(e.target.getAttribute('data-index'));
                 currentBlackoutPeriods.splice(idx, 1);
                 renderBlackoutChips();
+                saveConfig();
             };
         });
     }
 
-    addBlackoutBtn.addEventListener('click', () => {
+    function addBlackoutFromInputs() {
         const startInput = document.getElementById('blackout-start');
         const endInput = document.getElementById('blackout-end');
         const startValue = startInput.value;
-        let endValue = endInput.value || startValue;
+        const endValue = endInput.value || startValue;
 
-        if (!startValue) return;
-
-        if (endValue < startValue) {
-            alert('A data final do período deve ser igual ou posterior à data inicial.');
-            return;
+        if (!startValue) {
+            showToast(typedText(startInput) ? 'Data inválida: use o formato dd/mm/aaaa.' : 'Escolha pelo menos a data de início do recesso/feriado.', { type: 'error' });
+            if (startInput.focus) startInput.focus();
+            return false;
         }
-
-        currentBlackoutPeriods.push({ start: startValue, end: endValue });
+        if (typedText(endInput) && !endInput.value) {
+            showToast('A data final está incompleta: use o formato dd/mm/aaaa (ou deixe vazia para um dia só).', { type: 'error' });
+            return false;
+        }
+        if (endValue < startValue) {
+            showToast('A data final do período precisa ser igual ou depois da data inicial.', { type: 'error' });
+            return false;
+        }
+        if (!currentBlackoutPeriods.some(bp => bp.start === startValue && bp.end === endValue)) {
+            currentBlackoutPeriods.push({ start: startValue, end: endValue });
+            currentBlackoutPeriods.sort((a, b) => a.start.localeCompare(b.start));
+        }
         renderBlackoutChips();
         startInput.value = '';
         endInput.value = '';
+        return true;
+    }
+
+    addBlackoutBtn.addEventListener('click', () => {
+        if (addBlackoutFromInputs()) saveConfig();
     });
 
     // Activity exceptions can be a single date ("YYYY-MM-DD") or an interval
     // ({start, end}) covering a range of days the activity won't happen.
     function formatExceptionLabel(exc) {
-        return typeof exc === 'string' ? exc : `${exc.start} a ${exc.end}`;
+        if (typeof exc === 'string') return formatDateBR(exc);
+        return exc.start === exc.end ? formatDateBR(exc.start) : `${formatDateBR(exc.start)} a ${formatDateBR(exc.end)}`;
     }
 
     // Add exception handler
-    addExceptionBtn.addEventListener('click', () => {
+    // Adiciona a exceção digitada nos campos. Retorna false se houver erro (já avisado ao usuário).
+    function addActivityExceptionFromInputs({ quietIfEmpty = false } = {}) {
         const dateInput = document.getElementById('exception-date');
         const endInput = document.getElementById('exception-date-end');
         const startValue = dateInput.value;
         const endValue = endInput.value;
 
-        if (!startValue) return;
+        if (!startValue) {
+            if (typedText(dateInput)) {
+                showToast('Data da exceção inválida: use o formato dd/mm/aaaa.', { type: 'error' });
+                return false;
+            }
+            if (!quietIfEmpty) showToast('Escolha a data em que a atividade não acontece.', { type: 'warning' });
+            return quietIfEmpty;
+        }
+        if (typedText(endInput) && !endValue) {
+            showToast('A data final da exceção está incompleta (dd/mm/aaaa). Deixe vazia para um dia só.', { type: 'error' });
+            return false;
+        }
 
         if (endValue && endValue !== startValue) {
             if (endValue < startValue) {
-                alert('A data final da exceção deve ser igual ou posterior à data inicial.');
-                return;
+                showToast('A data final da exceção precisa ser igual ou depois da data inicial.', { type: 'error' });
+                return false;
             }
             currentExceptions.push({ start: startValue, end: endValue });
         } else if (!currentExceptions.includes(startValue)) {
@@ -1227,7 +1704,10 @@ document.addEventListener('DOMContentLoaded', () => {
         renderExceptionChips();
         dateInput.value = '';
         endInput.value = '';
-    });
+        return true;
+    }
+
+    addExceptionBtn.addEventListener('click', () => addActivityExceptionFromInputs());
 
     function renderExceptionChips() {
         currentExceptionsList.innerHTML = '';
@@ -1252,8 +1732,47 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Form submission handler
+    // Carga horária calculada pelo horário (até o usuário mudar à mão)
+    function hoursBetween(start, end) {
+        if (!start || !end) return null;
+        const [sh, sm] = start.split(':').map(Number);
+        const [eh, em] = end.split(':').map(Number);
+        let minutes = (eh * 60 + em) - (sh * 60 + sm);
+        if (minutes <= 0) minutes += 24 * 60;     // plantão que vira a noite (ex.: 19:00 → 07:00)
+        return Math.round(minutes / 30) / 2;      // arredonda para meia hora
+    }
+
+    function setupAutoHours(startEl, endEl, hoursEl, { startsAuto = true } = {}) {
+        if (!startEl || !endEl || !hoursEl || !hoursEl.addEventListener) return () => {};
+        let auto = startsAuto;
+        const fill = () => {
+            const h = hoursBetween(startEl.value, endEl.value);
+            if (auto && h != null) hoursEl.value = h;
+        };
+        hoursEl.addEventListener('input', () => { auto = hoursEl.value === ''; });
+        ['change', 'blur'].forEach(ev => { startEl.addEventListener(ev, fill); endEl.addEventListener(ev, fill); });
+        return () => { auto = true; };   // reset (ex.: depois de limpar o formulário)
+    }
+
+    const resetActivityAutoHours = setupAutoHours(
+        document.getElementById('start-hour'), document.getElementById('end-hour'), document.getElementById('hours-count'));
+
+    // Validação comum (formulário e janela de edição). Retorna a mensagem de erro ou null.
+    function validateActivityFields({ type, startTime, endTime, studentsCount, minStudents, hoursCount }) {
+        if (!type) return 'Escolha o tipo da atividade: Plantão ou Ambulatório.';
+        if (!startTime || !endTime) return 'Preencha o horário de início e de término no formato 24h (ex.: 07:00 e 19:00).';
+        if (startTime === endTime) return 'O horário de término precisa ser diferente do horário de início.';
+        if (!Number.isInteger(studentsCount) || studentsCount < 1) return 'O máximo de alunos precisa ser pelo menos 1.';
+        if (minStudents > studentsCount) return `O mínimo de alunos (${minStudents}) não pode ser maior que o máximo (${studentsCount}).`;
+        if (!(hoursCount > 0)) return 'Informe a carga horária da atividade (em horas, ex.: 4 ou 4.5).';
+        return null;
+    }
+
     activityForm.addEventListener('submit', (e) => {
         e.preventDefault();
+
+        // Exceção digitada mas não "adicionada": entra junto (antes era perdida em silêncio)
+        if (!addActivityExceptionFromInputs({ quietIfEmpty: true })) return;
 
         // Extract values
         const minStudentsInput = parseInt(document.getElementById('min-students-number').value);
@@ -1274,34 +1793,89 @@ document.addEventListener('DOMContentLoaded', () => {
             newActivity.activityGroup = document.getElementById('activity-group').value;
         }
 
+        newActivity.name = newActivity.name.trim();
+        newActivity.location = newActivity.location.trim();
+        const problem = validateActivityFields(newActivity);
+        if (problem) {
+            showToast(problem, { type: 'error' });
+            return;
+        }
+
         activities.push(newActivity);
         saveActivities();
         renderActivities();
 
-        // Reset
-        activityForm.reset();
+        const overnight = newActivity.endTime < newActivity.startTime ? ' (vira a noite)' : '';
+        const shortPlantao = isPlantao(newActivity.type) && newActivity.hoursCount <= 6
+            ? `\nObs.: está marcada como PLANTÃO com ${newActivity.hoursCount}h. Se for um ambulatório, edite e troque o tipo.` : '';
+        showToast(`✅ "${newActivity.name}" adicionada: ${DAY_TRANSLATIONS[newActivity.day]}, ${newActivity.startTime}–${newActivity.endTime}${overnight}. O formulário continua preenchido: para outra parecida, mude só o dia e o horário.${shortPlantao}`, { type: shortPlantao ? 'warning' : 'success', duration: shortPlantao ? 10000 : 6500 });
+
+        // Mantém os campos preenchidos e limpa só o horário: cadastrar a mesma atividade
+        // em outro dia/horário (o caso mais comum) fica bem mais rápido
+        document.getElementById('start-hour').value = '';
+        document.getElementById('end-hour').value = '';
+        document.getElementById('hours-count').value = '';
+        resetActivityAutoHours();
         currentExceptions = [];
         renderExceptionChips();
+        const dayField = document.getElementById('day');
+        if (dayField && dayField.focus) dayField.focus();
     });
 
-    // Student exception handler
-    addStudentExceptionBtn.addEventListener('click', () => {
-        const dateInput = document.getElementById('student-exception-date');
-        const startInput = document.getElementById('student-exc-start');
-        const endInput = document.getElementById('student-exc-end');
-        const dateValue = dateInput.value;
-        
-        if (dateValue) {
-            currentStudentExceptions.push({
-                date: dateValue,
-                startTime: startInput.value,
-                endTime: endInput.value
-            });
-            renderStudentExceptionChips();
-            dateInput.value = '';
-            startInput.value = '';
-            endInput.value = '';
+    // Lê "data + horário opcional" (indisponibilidade/preferência do aluno) e valida.
+    // Retorna { entry } se ok, { empty: true } se nada foi digitado, ou { error: true } (já avisado).
+    function readDateTimeEntry(dateId, startId, endId, what) {
+        const dateInput = document.getElementById(dateId);
+        const startInput = document.getElementById(startId);
+        const endInput = document.getElementById(endId);
+        const date = dateInput.value;
+        const startTime = startInput.value;
+        const endTime = endInput.value;
+        const anyTyped = typedText(dateInput) || typedText(startInput) || typedText(endInput);
+
+        if (!date) {
+            if (!anyTyped) return { empty: true };
+            showToast(typedText(dateInput) ? `Data da ${what} inválida: use dd/mm/aaaa.` : `Escolha a data da ${what}.`, { type: 'error' });
+            return { error: true };
         }
+        if ((typedText(startInput) && !startTime) || (typedText(endInput) && !endTime)) {
+            showToast(`Horário da ${what} inválido: use 24h, ex.: 07:00 ou 13:30.`, { type: 'error' });
+            return { error: true };
+        }
+        if (!!startTime !== !!endTime) {
+            showToast(`Preencha o horário de início e de fim da ${what}, ou deixe os dois vazios para o dia inteiro.`, { type: 'error' });
+            return { error: true };
+        }
+        if (startTime && endTime <= startTime) {
+            showToast(`O horário final da ${what} precisa ser depois do inicial.`, { type: 'error' });
+            return { error: true };
+        }
+        const clear = () => { dateInput.value = ''; startInput.value = ''; endInput.value = ''; };
+        return { entry: { date, startTime, endTime }, clear };
+    }
+
+    function addStudentEntry(list, ids, what, render, { quietIfEmpty = false } = {}) {
+        const result = readDateTimeEntry(...ids, what);
+        if (result.error) return false;
+        if (result.empty) {
+            if (!quietIfEmpty) showToast(`Escolha a data da ${what} antes de adicionar.`, { type: 'warning' });
+            return quietIfEmpty;
+        }
+        const e = result.entry;
+        if (!list.some(x => x.date === e.date && x.startTime === e.startTime && x.endTime === e.endTime)) {
+            list.push(e);
+            list.sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime));
+        }
+        render();
+        result.clear();
+        return true;
+    }
+
+    const STUDENT_EXC_IDS = ['student-exception-date', 'student-exc-start', 'student-exc-end'];
+    const STUDENT_PREF_IDS = ['student-preferred-date', 'student-pref-start', 'student-pref-end'];
+
+    addStudentExceptionBtn.addEventListener('click', () => {
+        addStudentEntry(currentStudentExceptions, STUDENT_EXC_IDS, 'indisponibilidade', renderStudentExceptionChips);
     });
 
     function renderStudentExceptionChips() {
@@ -1311,7 +1885,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const tag = document.createElement('span');
             tag.className = 'tag exception';
             tag.innerHTML = `
-                ${exc.date}${timeInfo} 
+                ${formatDateBR(exc.date)}${timeInfo} 
                 <span class="remove-student-tag" data-index="${index}">&times;</span>
             `;
             currentStudentExceptionsList.appendChild(tag);
@@ -1328,22 +1902,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Student preferred date handler
     addStudentPreferredBtn.addEventListener('click', () => {
-        const dateInput = document.getElementById('student-preferred-date');
-        const startInput = document.getElementById('student-pref-start');
-        const endInput = document.getElementById('student-pref-end');
-        const dateValue = dateInput.value;
-        
-        if (dateValue) {
-            currentStudentPreferred.push({
-                date: dateValue,
-                startTime: startInput.value,
-                endTime: endInput.value
-            });
-            renderStudentPreferredChips();
-            dateInput.value = '';
-            startInput.value = '';
-            endInput.value = '';
-        }
+        addStudentEntry(currentStudentPreferred, STUDENT_PREF_IDS, 'preferência', renderStudentPreferredChips);
     });
 
     function renderStudentPreferredChips() {
@@ -1353,7 +1912,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const tag = document.createElement('span');
             tag.className = 'tag preferred';
             tag.innerHTML = `
-                ${pref.date}${timeInfo} 
+                ${formatDateBR(pref.date)}${timeInfo} 
                 <span class="remove-preferred-tag" data-index="${index}">&times;</span>
             `;
             currentStudentPreferredList.appendChild(tag);
@@ -1369,12 +1928,31 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Student form submission
+    // Nomes iguais confundem a escala (ela identifica alunos pelo nome)
+    function findStudentByName(name, exceptId = null) {
+        const key = name.trim().toLocaleLowerCase('pt-BR');
+        return students.find(s => s.id !== exceptId && String(s.name).trim().toLocaleLowerCase('pt-BR') === key);
+    }
+
     studentForm.addEventListener('submit', (e) => {
         e.preventDefault();
 
+        const typedName = document.getElementById('student-name').value.trim().replace(/\s+/g, ' ');
+        if (!typedName) {
+            showToast('Digite o nome do aluno.', { type: 'error' });
+            return;
+        }
+        if (findStudentByName(typedName)) {
+            showToast(`Já existe um aluno chamado "${typedName}". Use um nome diferente (ex.: com o sobrenome).`, { type: 'error' });
+            return;
+        }
+        // Datas digitadas mas não "adicionadas" entram junto (antes eram perdidas em silêncio)
+        if (!addStudentEntry(currentStudentPreferred, STUDENT_PREF_IDS, 'preferência', renderStudentPreferredChips, { quietIfEmpty: true })) return;
+        if (!addStudentEntry(currentStudentExceptions, STUDENT_EXC_IDS, 'indisponibilidade', renderStudentExceptionChips, { quietIfEmpty: true })) return;
+
         const newStudent = {
             id: Date.now(),
-            name: document.getElementById('student-name').value,
+            name: typedName,
             affinityGroup: document.getElementById('student-affinity').value || 'A',
             exceptions: [...currentStudentExceptions],
             preferredDates: [...currentStudentPreferred],
@@ -1384,6 +1962,7 @@ document.addEventListener('DOMContentLoaded', () => {
         students.push(newStudent);
         saveStudents();
         renderStudents();
+        showToast(`✅ ${newStudent.name} adicionado(a).`, { type: 'success' });
 
         // Reset
         studentForm.reset();
@@ -1391,6 +1970,8 @@ document.addEventListener('DOMContentLoaded', () => {
         currentStudentPreferred = [];
         renderStudentExceptionChips();
         renderStudentPreferredChips();
+        const nameField = document.getElementById('student-name');
+        if (nameField && nameField.focus) nameField.focus();
     });
 
     function renderStudents() {
@@ -1400,7 +1981,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (studentsCountBadge) studentsCountBadge.textContent = students.length;
 
         if (students.length === 0) {
-            studentsContainer.innerHTML = '<p class="empty-msg">Nenhum aluno adicionado ainda.</p>';
+            studentsContainer.innerHTML = '<p class="empty-msg">Nenhum aluno ainda. Digite o nome no formulário e clique em "Adicionar Aluno".</p>';
             return;
         }
 
@@ -1416,7 +1997,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="activity-exceptions">
                         <strong>Exceções:</strong>
                         ${student.exceptions.map(exc => {
-                            const val = typeof exc === 'string' ? exc : exc.date + (exc.startTime ? ` (${exc.startTime}-${exc.endTime})` : '');
+                            const val = typeof exc === 'string' ? formatDateBR(exc) : formatDateBR(exc.date) + formatTimeRangeSuffix(exc);
                             return `<span class="exception-tag">${val}</span>`;
                         }).join('')}
                     </div>
@@ -1429,7 +2010,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="activity-preferences">
                         <strong>Preferências:</strong>
                         ${student.preferredDates.map(pref => {
-                            const val = typeof pref === 'string' ? pref : pref.date + (pref.startTime ? ` (${pref.startTime}-${pref.endTime})` : '');
+                            const val = typeof pref === 'string' ? formatDateBR(pref) : formatDateBR(pref.date) + formatTimeRangeSuffix(pref);
                             return `<span class="preferred-tag">${val}</span>`;
                         }).join('')}
                     </div>
@@ -1481,8 +2062,8 @@ document.addEventListener('DOMContentLoaded', () => {
         modalBody.innerHTML = `
             <form id="edit-student-form">
                 <div class="form-group">
-                    <label>Nome do Aluno</label>
-                    <input type="text" id="edit-student-name" value="${student.name}" required>
+                    <label for="edit-student-name">Nome do Aluno</label>
+                    <input type="text" id="edit-student-name" value="${escapeHtml(student.name)}" required>
                 </div>
                 <div class="form-group">
                     <label>Grupo de Afinidade</label>
@@ -1494,7 +2075,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
 
                 <div class="modal-section exceptions-section">
-                    <h4>Exceções e Horários do Aluno</h4>
+                    <h4>Indisponibilidades (dias em que não pode)</h4>
+                    <p class="field-hint">Horário vazio = dia inteiro.</p>
                     <div class="form-row time-input-row">
                         <input type="date" id="modal-exc-date">
                         <div class="time-range">
@@ -1508,7 +2090,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
 
                 <div class="modal-section preferences-section">
-                    <h4>Datas e Horários Preferenciais</h4>
+                    <h4>Preferências (dias em que gostaria de estar)</h4>
                     <div class="form-row time-input-row">
                         <input type="date" id="modal-pref-date">
                         <div class="time-range">
@@ -1524,6 +2106,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <button type="submit">💾 Salvar Alterações</button>
             </form>
         `;
+        enhanceBrazilianInputs(modalBody);
 
         const renderModalChips = () => {
             const excList = document.getElementById('modal-exc-list');
@@ -1532,7 +2115,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const timeInfo = (exc.startTime && exc.endTime) ? ` (${exc.startTime}-${exc.endTime})` : '';
                 const tag = document.createElement('span');
                 tag.className = 'tag exception';
-                tag.innerHTML = `${exc.date}${timeInfo} <span class="remove-modal-tag" data-idx="${idx}">&times;</span>`;
+                tag.innerHTML = `${formatDateBR(exc.date)}${timeInfo} <span class="remove-modal-tag" data-idx="${idx}">&times;</span>`;
                 excList.appendChild(tag);
             });
 
@@ -1542,7 +2125,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const timeInfo = (pref.startTime && pref.endTime) ? ` (${pref.startTime}-${pref.endTime})` : '';
                 const tag = document.createElement('span');
                 tag.className = 'tag preferred';
-                tag.innerHTML = `${pref.date}${timeInfo} <span class="remove-modal-tag" data-idx="${idx}">&times;</span>`;
+                tag.innerHTML = `${formatDateBR(pref.date)}${timeInfo} <span class="remove-modal-tag" data-idx="${idx}">&times;</span>`;
                 prefList.appendChild(tag);
             });
 
@@ -1560,58 +2143,85 @@ document.addEventListener('DOMContentLoaded', () => {
 
         renderModalChips();
 
-        document.getElementById('modal-add-exc').onclick = () => {
-            const date = document.getElementById('modal-exc-date').value;
-            if (date) {
-                modalExceptions.push({
-                    date,
-                    startTime: document.getElementById('modal-exc-start').value,
-                    endTime: document.getElementById('modal-exc-end').value
-                });
-                renderModalChips();
-                document.getElementById('modal-exc-date').value = '';
-                document.getElementById('modal-exc-start').value = '';
-                document.getElementById('modal-exc-end').value = '';
-            }
-        };
-
-        document.getElementById('modal-add-pref').onclick = () => {
-            const date = document.getElementById('modal-pref-date').value;
-            if (date) {
-                modalPreferred.push({
-                    date,
-                    startTime: document.getElementById('modal-pref-start').value,
-                    endTime: document.getElementById('modal-pref-end').value
-                });
-                renderModalChips();
-                document.getElementById('modal-pref-date').value = '';
-                document.getElementById('modal-pref-start').value = '';
-                document.getElementById('modal-pref-end').value = '';
-            }
-        };
+        const MODAL_EXC_IDS = ['modal-exc-date', 'modal-exc-start', 'modal-exc-end'];
+        const MODAL_PREF_IDS = ['modal-pref-date', 'modal-pref-start', 'modal-pref-end'];
+        document.getElementById('modal-add-exc').onclick = () =>
+            addStudentEntry(modalExceptions, MODAL_EXC_IDS, 'indisponibilidade', renderModalChips);
+        document.getElementById('modal-add-pref').onclick = () =>
+            addStudentEntry(modalPreferred, MODAL_PREF_IDS, 'preferência', renderModalChips);
 
         editModal.classList.remove('hidden');
 
         document.getElementById('edit-student-form').onsubmit = (e) => {
             e.preventDefault();
-            student.name = document.getElementById('edit-student-name').value;
-            student.affinityGroup = document.getElementById('edit-student-affinity').value || 'A';
+            const newName = document.getElementById('edit-student-name').value.trim().replace(/\s+/g, ' ');
+            if (!newName) {
+                showToast('O nome do aluno não pode ficar vazio.', { type: 'error' });
+                return;
+            }
+            if (findStudentByName(newName, student.id)) {
+                showToast(`Já existe outro aluno chamado "${newName}".`, { type: 'error' });
+                return;
+            }
+            // Datas digitadas mas não "adicionadas" entram junto
+            if (!addStudentEntry(modalExceptions, MODAL_EXC_IDS, 'indisponibilidade', renderModalChips, { quietIfEmpty: true })) return;
+            if (!addStudentEntry(modalPreferred, MODAL_PREF_IDS, 'preferência', renderModalChips, { quietIfEmpty: true })) return;
+
+            const oldName = student.name;
+            const newAffinity = document.getElementById('edit-student-affinity').value || 'A';
+            const rulesChanged = student.affinityGroup !== newAffinity ||
+                JSON.stringify(student.exceptions || []) !== JSON.stringify(modalExceptions) ||
+                JSON.stringify(student.preferredDates || []) !== JSON.stringify(modalPreferred);
+
+            student.name = newName;
+            student.affinityGroup = newAffinity;
             student.exceptions = modalExceptions;
             student.preferredDates = modalPreferred;
-            saveStudents();
+            saveStudents({ stale: rulesChanged });
+            if (oldName !== newName) renameStudentEverywhere(oldName, newName);
             renderStudents();
             closeModalHandler();
+            showToast(`✅ ${newName} atualizado(a).`, { type: 'success' });
         };
     }
 
     function deleteStudent(id) {
-        students = students.filter(s => s.id !== id);
+        const index = students.findIndex(s => s.id === id);
+        if (index === -1) return;
+        const removed = students[index];
+        students.splice(index, 1);
         saveStudents();
         renderStudents();
+        showToast(`${removed.name} excluído(a) da lista de alunos.`, {
+            actionLabel: 'Desfazer',
+            onAction: () => {
+                students.splice(Math.min(index, students.length), 0, removed);
+                saveStudents();
+                renderStudents();
+            }
+        });
     }
 
-    function saveStudents() {
+    function saveStudents({ stale = true } = {}) {
         localStorage.setItem('med_rotations_students', JSON.stringify(students));
+        if (stale) markScheduleStale();
+        updateProgress();
+    }
+
+    // Renomear um aluno: a escala e os 📌 guardam o nome, então atualiza tudo junto
+    function renameStudentEverywhere(oldName, newName) {
+        pinnedAssignments.forEach(p => { if (p.studentName === oldName) p.studentName = newName; });
+        savePins();
+        if (lastGeneratedSchedule && Array.isArray(lastGeneratedSchedule.finalSchedule)) {
+            lastGeneratedSchedule.finalSchedule.forEach(day => (day.slots || []).forEach(slot => {
+                slot.assigned = (slot.assigned || []).map(n => n === oldName ? newName : n);
+            }));
+            (lastGeneratedSchedule.studentStats || []).forEach(st => { if (st.name === oldName) st.name = newName; });
+            persistSchedule();
+            renderGeneratedResults(lastGeneratedSchedule);
+            renderCalendarView(lastGeneratedSchedule.finalSchedule);
+            renderStudentView(lastGeneratedSchedule.finalSchedule);
+        }
     }
 
     // Render function
@@ -1620,7 +2230,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (activitiesCountBadge) activitiesCountBadge.textContent = activities.length;
 
         if (activities.length === 0) {
-            activitiesContainer.innerHTML = '<p class="empty-msg">Nenhuma atividade adicionada ainda.</p>';
+            activitiesContainer.innerHTML = '<p class="empty-msg">Nenhuma atividade ainda. Comece pelo plantão ou ambulatório de segunda-feira e vá adicionando a semana.</p>';
             return;
         }
 
@@ -1658,11 +2268,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             card.innerHTML = `
                 <div class="activity-info">
-                    <h3>${activity.name} <span class="type-badge">${activity.type || 'PLANTÃO'}</span>${groupBadge}</h3>
+                    <h3>${escapeHtml(activity.name)} <span class="type-badge ${isPlantao(activity.type) ? 'type-plantao' : ''}">${typeLabel(activity.type)}</span>${groupBadge}</h3>
                     <div class="activity-details">
                         <span><strong>Dia:</strong> ${DAY_TRANSLATIONS[activity.day]}</span>
                         <span><strong>Horário:</strong> ${activity.startTime} - ${activity.endTime}</span>
-                        <span><strong>Local:</strong> ${activity.location}</span>
+                        <span><strong>Local:</strong> ${escapeHtml(activity.location)}</span>
                         <span><strong>Alunos:</strong> ${activity.minStudents ?? 1}-${activity.studentsCount}</span>
                         <span><strong>Horas:</strong> ${activity.hoursCount}</span>
                     </div>
@@ -1702,16 +2312,34 @@ document.addEventListener('DOMContentLoaded', () => {
         modalTitle.textContent = 'Editar Atividade';
         modalBody.innerHTML = `
             <form id="edit-activity-form">
-                <div class="form-group">
-                    <label>Nome da Atividade</label>
-                    <input type="text" id="edit-activity-name" value="${activity.name}" required>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="edit-activity-day">Dia da Semana</label>
+                        <select id="edit-activity-day" required>
+                            ${Object.keys(DAY_TRANSLATIONS).map(d => `<option value="${d}" ${activity.day === d ? 'selected' : ''}>${DAY_TRANSLATIONS[d]}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-start-hour">Início</label>
+                        <input type="time" id="edit-start-hour" value="${activity.startTime}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-end-hour">Término</label>
+                        <input type="time" id="edit-end-hour" value="${activity.endTime}" required>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>Tipo de Atividade</label>
-                    <select id="edit-activity-type" required>
-                        <option value="PLANTÃO" ${activity.type === 'PLANTÃO' ? 'selected' : ''}>PLANTÃO</option>
-                        <option value="AMBULATORIO" ${activity.type === 'AMBULATORIO' ? 'selected' : ''}>AMBULATORIO</option>
-                    </select>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="edit-activity-name">Nome da Atividade</label>
+                        <input type="text" id="edit-activity-name" value="${escapeHtml(activity.name)}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-activity-type">Tipo</label>
+                        <select id="edit-activity-type" required>
+                            <option value="PLANTÃO" ${isPlantao(activity.type) ? 'selected' : ''}>Plantão</option>
+                            <option value="AMBULATORIO" ${!isPlantao(activity.type) ? 'selected' : ''}>Ambulatório</option>
+                        </select>
+                    </div>
                 </div>
                 ${rotationConfig.twoGroupsEnabled ? `
                 <div class="form-group">
@@ -1722,26 +2350,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     </select>
                 </div>` : ''}
                 <div class="form-group">
-                    <label>Local</label>
-                    <input type="text" id="edit-location" value="${activity.location}" required>
+                    <label for="edit-location">Local</label>
+                    <input type="text" id="edit-location" value="${escapeHtml(activity.location)}" required>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label>Alunos (Mín)</label>
-                        <input type="number" id="edit-min-students" min="0" value="${activity.minStudents ?? 1}" required>
+                        <label for="edit-min-students">Mínimo de Alunos</label>
+                        <input type="number" id="edit-min-students" min="0" value="${activity.minStudents ?? 1}" required inputmode="numeric">
                     </div>
                     <div class="form-group">
-                        <label>Alunos (Máx)</label>
-                        <input type="number" id="edit-students-number" value="${activity.studentsCount}" required>
+                        <label for="edit-students-number">Máximo de Alunos</label>
+                        <input type="number" id="edit-students-number" min="1" value="${activity.studentsCount}" required inputmode="numeric">
                     </div>
                     <div class="form-group">
-                        <label>Carga Horária</label>
-                        <input type="number" id="edit-hours-count" step="0.5" value="${activity.hoursCount}" required>
+                        <label for="edit-hours-count">Carga Horária</label>
+                        <input type="number" id="edit-hours-count" step="0.5" min="0" value="${activity.hoursCount}" required inputmode="decimal">
                     </div>
                 </div>
 
                 <div class="modal-section exceptions-section">
-                    <h4>Exceções da Atividade</h4>
+                    <h4>Dias em que esta atividade não acontece</h4>
                     <div class="form-row">
                         <input type="date" id="modal-act-exc-date">
                         <span>até (opcional)</span>
@@ -1754,6 +2382,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <button type="submit">💾 Salvar Alterações</button>
             </form>
         `;
+        enhanceBrazilianInputs(modalBody);
 
         const renderModalChips = () => {
             const list = document.getElementById('modal-act-exc-list');
@@ -1776,18 +2405,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
         renderModalChips();
 
-        document.getElementById('modal-act-add-exc').onclick = () => {
+        const addModalActivityException = ({ quietIfEmpty = false } = {}) => {
             const startInput = document.getElementById('modal-act-exc-date');
             const endInput = document.getElementById('modal-act-exc-date-end');
             const startValue = startInput.value;
             const endValue = endInput.value;
 
-            if (!startValue) return;
-
+            if (!startValue) {
+                if (typedText(startInput)) {
+                    showToast('Data da exceção inválida: use dd/mm/aaaa.', { type: 'error' });
+                    return false;
+                }
+                if (!quietIfEmpty) showToast('Escolha a data em que a atividade não acontece.', { type: 'warning' });
+                return quietIfEmpty;
+            }
+            if (typedText(endInput) && !endValue) {
+                showToast('A data final da exceção está incompleta (dd/mm/aaaa).', { type: 'error' });
+                return false;
+            }
             if (endValue && endValue !== startValue) {
                 if (endValue < startValue) {
-                    alert('A data final da exceção deve ser igual ou posterior à data inicial.');
-                    return;
+                    showToast('A data final da exceção precisa ser igual ou depois da data inicial.', { type: 'error' });
+                    return false;
                 }
                 modalExceptions.push({ start: startValue, end: endValue });
             } else if (!modalExceptions.includes(startValue)) {
@@ -1797,19 +2436,36 @@ document.addEventListener('DOMContentLoaded', () => {
             renderModalChips();
             startInput.value = '';
             endInput.value = '';
+            return true;
         };
+        document.getElementById('modal-act-add-exc').onclick = () => addModalActivityException();
+        setupAutoHours(document.getElementById('edit-start-hour'), document.getElementById('edit-end-hour'),
+            document.getElementById('edit-hours-count'), { startsAuto: false });
 
         editModal.classList.remove('hidden');
 
         document.getElementById('edit-activity-form').onsubmit = (e) => {
             e.preventDefault();
-            activity.name = document.getElementById('edit-activity-name').value;
-            activity.type = document.getElementById('edit-activity-type').value;
-            activity.location = document.getElementById('edit-location').value;
+            if (!addModalActivityException({ quietIfEmpty: true })) return;
+
             const editedMin = parseInt(document.getElementById('edit-min-students').value);
-            activity.minStudents = Number.isNaN(editedMin) ? 1 : editedMin;
-            activity.studentsCount = parseInt(document.getElementById('edit-students-number').value);
-            activity.hoursCount = parseFloat(document.getElementById('edit-hours-count').value);
+            const updated = {
+                day: document.getElementById('edit-activity-day').value,
+                startTime: document.getElementById('edit-start-hour').value,
+                endTime: document.getElementById('edit-end-hour').value,
+                name: document.getElementById('edit-activity-name').value.trim(),
+                type: document.getElementById('edit-activity-type').value,
+                location: document.getElementById('edit-location').value.trim(),
+                minStudents: Number.isNaN(editedMin) ? 1 : editedMin,
+                studentsCount: parseInt(document.getElementById('edit-students-number').value),
+                hoursCount: parseFloat(document.getElementById('edit-hours-count').value)
+            };
+            const problem = validateActivityFields(updated);
+            if (problem) {
+                showToast(problem, { type: 'error' });
+                return;
+            }
+            Object.assign(activity, updated);
             activity.exceptions = modalExceptions;
             if (rotationConfig.twoGroupsEnabled) {
                 activity.activityGroup = document.getElementById('edit-activity-group').value;
@@ -1818,6 +2474,7 @@ document.addEventListener('DOMContentLoaded', () => {
             saveActivities();
             renderActivities();
             closeModalHandler();
+            showToast(`✅ "${activity.name}" atualizada.`, { type: 'success' });
         };
     }
 
@@ -1828,18 +2485,34 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     closeModal.onclick = closeModalHandler;
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !confirmDialogOpen && editModal.classList && !editModal.classList.contains('hidden')) closeModalHandler();
+    });
     window.onclick = (e) => {
         if (e.target === editModal) closeModalHandler();
     };
 
     function deleteActivity(id) {
-        activities = activities.filter(activity => activity.id !== id);
+        const index = activities.findIndex(activity => activity.id === id);
+        if (index === -1) return;
+        const removed = activities[index];
+        activities.splice(index, 1);
         saveActivities();
         renderActivities();
+        showToast(`Atividade "${removed.name}" (${DAY_TRANSLATIONS[removed.day]} ${removed.startTime}) excluída.`, {
+            actionLabel: 'Desfazer',
+            onAction: () => {
+                activities.splice(Math.min(index, activities.length), 0, removed);
+                saveActivities();
+                renderActivities();
+            }
+        });
     }
 
     function saveActivities() {
         localStorage.setItem('med_rotations_activities', JSON.stringify(activities));
+        markScheduleStale();
+        updateProgress();
     }
 
     // --- Schedule Generation Logic ---
@@ -1852,50 +2525,143 @@ document.addEventListener('DOMContentLoaded', () => {
     const studentViewOutput = document.getElementById('student-view-output');
     const viewToggleBtn = document.getElementById('view-toggle-btn');
     const exportCsvBtn = document.getElementById('export-csv-btn');
+    const exportXlsxBtn = document.getElementById('export-xlsx-btn');
     const exportSheetsBtn = document.getElementById('export-sheets-btn');
     const clearPinsBtn = document.getElementById('clear-pins-btn');
 
     let lastGeneratedSchedule = null;
+
+    // A escala gerada (com as trocas feitas à mão) fica salva no navegador: recarregar a página não perde nada
+    const SCHEDULE_STORAGE_KEY = 'med_rotations_schedule';
+
+    // Cópia segura para JSON (coveredActivities é um Set)
+    function serializeSchedule(sched) {
+        if (!sched) return null;
+        const copy = JSON.parse(JSON.stringify(sched));
+        if (Array.isArray(copy.studentStats) && Array.isArray(sched.studentStats)) {
+            copy.studentStats.forEach((stat, i) => {
+                const original = sched.studentStats[i];
+                if (original && original.coveredActivities instanceof Set) stat.coveredActivities = Array.from(original.coveredActivities);
+            });
+        }
+        return copy;
+    }
+
+    function persistSchedule() {
+        try {
+            if (lastGeneratedSchedule) localStorage.setItem(SCHEDULE_STORAGE_KEY, JSON.stringify(serializeSchedule(lastGeneratedSchedule)));
+            else localStorage.removeItem(SCHEDULE_STORAGE_KEY);
+        } catch (e) {
+            console.warn('Não foi possível salvar a escala no navegador:', e);
+        }
+    }
+
+    // Recoloca na tela uma escala salva (backup importado ou localStorage), recalculando as estatísticas
+    function restoreSchedule(sched) {
+        if (!sched || !Array.isArray(sched.finalSchedule)) return false;
+        lastGeneratedSchedule = sched;
+        sched.finalSchedule.forEach(day => (day.slots || []).forEach(slot => {
+            if (slot.activity && slot.activity.name) slot.activity.name = slot.activity.name.trim();
+            if (!Array.isArray(slot.assigned)) slot.assigned = [];
+        }));
+        sched.mandatoryActivities = calculateMandatoryActivities(activities, rotationConfig);
+        sched.studentStats = students.map(s => ({
+            id: s.id,
+            name: s.name,
+            affinityGroup: s.affinityGroup,
+            totalHours: 0,
+            requiredHours: rotationConfig.requiredHours || 0,
+            hoursByGroup: rotationConfig.twoGroupsEnabled ? { 1: 0, 2: 0 } : undefined,
+            requiredHoursByGroup: rotationConfig.twoGroupsEnabled
+                ? { 1: rotationConfig.requiredHoursGroup1 || 0, 2: rotationConfig.requiredHoursGroup2 || 0 }
+                : undefined,
+            coveredActivities: new Set(),
+            hasPlantao: false
+        }));
+        recalculateAllStats();
+        renderGeneratedResults(sched);
+        renderCalendarView(sched.finalSchedule);
+        renderStudentView(sched.finalSchedule);
+        return true;
+    }
     let currentView = 'calendar'; // 'calendar' | 'student'
 
     // Atribuições fixadas (📌): sobrevivem à re-geração da escala
     let pinnedAssignments = [];
     try {
         pinnedAssignments = JSON.parse(localStorage.getItem('med_rotations_pins')) || [];
+        normalizeBackupFormats({ pinnedAssignments });
     } catch (e) {
         pinnedAssignments = [];
     }
 
+    // Dados da escala no formato usado pelas exportações (xlsx, PDF e Google Sheets)
+    function scheduleExportData() {
+        return { finalSchedule: lastGeneratedSchedule.finalSchedule, config: rotationConfig, students };
+    }
+
+    // Imprimir / PDF: uma página paisagem por semana no mesmo formato da planilha + balanço
+    const printOutput = document.getElementById('print-output');
     if (printBtn) {
         printBtn.addEventListener('click', () => {
-            if (lastGeneratedSchedule && calendarOutput.innerHTML === '') {
-                renderCalendarView(lastGeneratedSchedule.finalSchedule);
+            if (!lastGeneratedSchedule || !lastGeneratedSchedule.finalSchedule) {
+                showToast('Gere uma escala primeiro (botão "✨ Gerar Escala de Rodízio").', { type: 'warning' });
+                return;
             }
+            try {
+                printOutput.innerHTML = buildPrintHtml(scheduleExportData());
+            } catch (err) {
+                console.error(err);
+                showToast('Não foi possível montar a impressão: ' + err.message, { type: 'error' });
+                return;
+            }
+            document.body.classList.add('printing-schedule');
             window.print();
+        });
+        window.addEventListener('afterprint', () => {
+            document.body.classList.remove('printing-schedule');
+            printOutput.innerHTML = '';
         });
     }
 
     if (generateBtn) {
         const generateBtnDefaultLabel = generateBtn.textContent;
-        generateBtn.addEventListener('click', () => {
+        // Leva o usuário até o passo que falta, em vez de só reclamar
+        const goToStep = (sectionId, focusId) => {
+            const section = document.getElementById(sectionId);
+            if (section && section.scrollIntoView) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            const field = focusId && document.getElementById(focusId);
+            if (field && field.focus) setTimeout(() => field.focus({ preventScroll: true }), 400);
+        };
+
+        generateBtn.addEventListener('click', async () => {
             if (!rotationConfig.startDate || !rotationConfig.endDate) {
-                alert('Por favor, defina as datas de início e término primeiro.');
+                showToast('Falta o período: preencha a data de início e de término no passo 1.', { type: 'warning' });
+                goToStep('section-periodo', rotationConfig.startDate ? 'rotation-end' : 'rotation-start');
                 return;
             }
-            if (activities.length === 0 || students.length === 0) {
-                alert('Por favor, adicione atividades e alunos primeiro.');
+            if (activities.length === 0) {
+                showToast('Falta cadastrar as atividades (passo 2): os plantões e ambulatórios da semana.', { type: 'warning' });
+                goToStep('section-atividades', 'day');
+                return;
+            }
+            if (students.length === 0) {
+                showToast('Falta cadastrar os alunos (passo 3).', { type: 'warning' });
+                goToStep('section-alunos', 'student-name');
                 return;
             }
 
-            // Pre-generation feasibility check (cheap; no schedule required)
+            // Verificação prévia (rápida; não precisa gerar a escala)
             const feasibility = SchedulerCore.analyzeFeasibility(activities, students, rotationConfig);
             renderHealthIssues(feasibility, [], null);
             if (feasibility.errors.length > 0) {
-                const proceed = confirm(
-                    'A verificação prévia encontrou problemas:\n\n- ' +
-                    feasibility.errors.join('\n- ') +
-                    '\n\nDeseja gerar a escala mesmo assim?'
-                );
+                const proceed = await askConfirm({
+                    title: 'A escala pode não fechar',
+                    message: 'Antes de gerar, encontramos estes problemas. Você pode ajustar os dados ou gerar assim mesmo e corrigir depois arrastando os alunos.',
+                    details: feasibility.errors,
+                    confirmLabel: 'Gerar assim mesmo',
+                    cancelLabel: 'Voltar e ajustar'
+                });
                 if (!proceed) return;
             }
 
@@ -1912,12 +2678,16 @@ document.addEventListener('DOMContentLoaded', () => {
             runGeneration(input)
                 .then(scheduleData => {
                     lastGeneratedSchedule = scheduleData;
-                    renderGeneratedResults(scheduleData);
+                    persistSchedule();
+                    markScheduleFresh();
+                    updateProgress();
+                    showToast('✅ Escala gerada! Confira o calendário abaixo e compartilhe pelos botões de "Compartilhar".', { type: 'success' });
+                    renderGeneratedResults(scheduleData, { scroll: true });
                     renderCalendarView(scheduleData.finalSchedule);
                     renderStudentView(scheduleData.finalSchedule);
                 })
                 .catch(err => {
-                    alert('Erro ao gerar a escala: ' + err.message);
+                    showToast('Erro ao gerar a escala: ' + err.message, { type: 'error' });
                 })
                 .finally(() => {
                     generateBtn.disabled = false;
@@ -1926,8 +2696,45 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- "Tocar para mover": alternativa ao arrastar (celular/tablet não arrastam) ---
+    // Toque num nome → toque na atividade de destino (ou na caixa "Alunos" para tirar).
+    let pendingMove = null;   // { name, date, activityId }
+    const moveBar = document.getElementById('move-bar');
+    const moveBarText = document.getElementById('move-bar-text');
+
+    function cancelMove() {
+        pendingMove = null;
+        if (document.body && document.body.classList) document.body.classList.remove('moving-student');
+        if (calendarOutput && calendarOutput.querySelectorAll) {
+            calendarOutput.querySelectorAll('.move-selected').forEach(el => el.classList.remove('move-selected'));
+        }
+        if (moveBar && moveBar.classList) moveBar.classList.add('hidden');
+    }
+
+    function selectForMove(name, date, activityId, tagEl) {
+        if (pendingMove && pendingMove.name === name && pendingMove.date === date && String(pendingMove.activityId) === String(activityId)) {
+            cancelMove();
+            return;
+        }
+        cancelMove();
+        pendingMove = { name, date, activityId };
+        if (tagEl && tagEl.classList) tagEl.classList.add('move-selected');
+        if (document.body && document.body.classList) document.body.classList.add('moving-student');
+        if (moveBar && moveBar.classList) {
+            moveBarText.textContent = date === 'roster'
+                ? `Colocando ${name}: toque na atividade onde ele(a) deve entrar.`
+                : `Movendo ${name}: toque na atividade de destino, ou na caixa "Alunos" (fim do mês) para tirar.`;
+            moveBar.classList.remove('hidden');
+        }
+    }
+
+    const moveCancelBtn = document.getElementById('move-bar-cancel');
+    if (moveCancelBtn && moveCancelBtn.addEventListener) moveCancelBtn.addEventListener('click', cancelMove);
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && pendingMove && !confirmDialogOpen) cancelMove(); });
+
     function renderCalendarView(finalSchedule) {
         if (!rotationConfig.startDate || !rotationConfig.endDate || !Array.isArray(finalSchedule)) return;
+        cancelMove();
         
         calendarOutput.innerHTML = '';
         
@@ -2020,18 +2827,26 @@ document.addEventListener('DOMContentLoaded', () => {
                             
                             handleStudentReassignment(studentName, sourceDate, sourceActivityId, dateStr, slot.activity.id);
                         });
+
+                        // Tocar para mover: destino
+                        eventEl.addEventListener('click', () => {
+                            if (!pendingMove) return;
+                            const move = pendingMove;
+                            cancelMove();
+                            handleStudentReassignment(move.name, move.date, move.activityId, dateStr, slot.activity.id);
+                        });
                         
                         const assignedHtml = slot.assigned.map(name => {
                             const student = students.find(s => s.name === name);
                             const color = student ? student.color : '#ccc';
                             const pinned = isPinned(dateStr, slot.activity.id, name);
                             const pinTitle = pinned ? 'Desafixar (voltar a ser realocável)' : 'Fixar aluno nesta atividade';
-                            const studentSpan = `<span class="calendar-student-tag${pinned ? ' pinned' : ''}" draggable="true" data-name="${name}" data-date="${dateStr}" data-activity-id="${slot.activity.id}"><span class="color-dot" style="background-color: ${color}"></span>${name}<span class="pin-toggle" title="${pinTitle}">📌</span></span>`;
+                            const studentSpan = `<span class="calendar-student-tag${pinned ? ' pinned' : ''}" draggable="true" data-name="${escapeHtml(name)}" data-date="${dateStr}" data-activity-id="${slot.activity.id}"><span class="color-dot" style="background-color: ${color}"></span>${escapeHtml(name)}<span class="pin-toggle" title="${pinTitle}">📌</span></span>`;
                             return studentSpan;
                         }).join('');
 
                         const names = slot.assigned.length > 0 ? slot.assigned.join(', ') : 'Vazio';
-                        eventEl.title = `${slot.activity.name} [${slot.activity.type || 'PLANTÃO'}] (${slot.activity.startTime}-${slot.activity.endTime})\nAtribuído: ${names}`;
+                        eventEl.title = `${slot.activity.name} · ${typeLabel(slot.activity.type)} (${slot.activity.startTime}–${slot.activity.endTime})\nAlunos: ${names}`;
                         
                         eventEl.innerHTML = `
                             <div class="event-time-name">${slot.activity.startTime} ${slot.activity.name}</div>
@@ -2057,6 +2872,23 @@ document.addEventListener('DOMContentLoaded', () => {
                                     togglePin(tag.getAttribute('data-date'), tag.getAttribute('data-activity-id'), tag.getAttribute('data-name'));
                                 });
                             }
+
+                            // Tocar para mover: escolhe o aluno (tocar no mesmo aluno de novo cancela)
+                            tag.addEventListener('click', (e) => {
+                                e.stopPropagation();
+                                if (pendingMove && !(pendingMove.name === tag.getAttribute('data-name') &&
+                                    pendingMove.date === tag.getAttribute('data-date') &&
+                                    String(pendingMove.activityId) === tag.getAttribute('data-activity-id'))) {
+                                    // Já havia alguém escolhido: tocar em outro nome de outra atividade leva o escolhido para lá
+                                    if (tag.getAttribute('data-activity-id') !== String(pendingMove.activityId) || tag.getAttribute('data-date') !== pendingMove.date) {
+                                        const move = pendingMove;
+                                        cancelMove();
+                                        handleStudentReassignment(move.name, move.date, move.activityId, dateStr, slot.activity.id);
+                                        return;
+                                    }
+                                }
+                                selectForMove(tag.getAttribute('data-name'), tag.getAttribute('data-date'), tag.getAttribute('data-activity-id'), tag);
+                            });
                         });
 
                         eventsCont.appendChild(eventEl);
@@ -2092,7 +2924,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // --- Student Roster for this month ---
                 const rosterDiv = document.createElement('div');
                 rosterDiv.className = 'calendar-roster';
-                rosterDiv.innerHTML = '<h4>Alunos (Arraste para atribuir ou remover)</h4>';
+                rosterDiv.innerHTML = '<h4>Alunos <span class="roster-hint">Arraste (ou toque em) um nome para colocá-lo numa atividade. Para tirar alguém, traga o nome para cá.</span></h4>';
                 
                 const rosterList = document.createElement('div');
                 rosterList.className = 'roster-list';
@@ -2101,7 +2933,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     const studentTag = document.createElement('span');
                     studentTag.className = 'calendar-student-tag roster-item';
                     studentTag.draggable = true;
-                    studentTag.innerHTML = `<span class="color-dot" style="background-color: ${student.color}"></span>${student.name}`;
+                    studentTag.innerHTML = `<span class="color-dot" style="background-color: ${student.color}"></span>${escapeHtml(student.name)}`;
+                    studentTag.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        selectForMove(student.name, 'roster', 'roster', studentTag);
+                    });
                     
                     studentTag.addEventListener('dragstart', (e) => {
                         e.dataTransfer.setData('text/plain', student.name);
@@ -2115,6 +2951,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                     
                     rosterList.appendChild(studentTag);
+                });
+
+                // Tocar para mover: tocar na caixa "Alunos" tira o aluno escolhido da atividade
+                rosterDiv.addEventListener('click', () => {
+                    if (!pendingMove || pendingMove.date === 'roster') return;
+                    const move = pendingMove;
+                    cancelMove();
+                    handleStudentUnassignment(move.name, move.date, move.activityId);
                 });
 
                 // Make roster a drop target for unassignment
@@ -2150,52 +2994,45 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function handleStudentReassignment(studentName, sourceDate, sourceActivityId, targetDate, targetActivityId) {
-        if (!lastGeneratedSchedule) return;
+    async function handleStudentReassignment(studentName, sourceDate, sourceActivityId, targetDate, targetActivityId) {
+        if (!lastGeneratedSchedule || confirmDialogOpen) return;
 
-        // If same slot, do nothing
+        // Mesmo lugar: nada a fazer
         if (sourceDate === targetDate && sourceActivityId === targetActivityId) return;
 
         const { finalSchedule } = lastGeneratedSchedule;
 
-        // 1. Find target slot
         const targetDay = finalSchedule.find(d => d.date === targetDate);
         if (!targetDay) return;
         const targetSlot = targetDay.slots.find(s => s.activity.id == targetActivityId);
         if (!targetSlot) return;
 
-        // 2. Check if student already in target
         if (targetSlot.assigned.includes(studentName)) {
-            alert(`${studentName} já está atribuído a este horário.`);
+            showToast(`${studentName} já está nessa atividade.`, { type: 'warning' });
             return;
         }
 
-        // 2.3 Check student unavailability (exceptions)
+        // Junta todos os conflitos e pergunta UMA vez
+        const conflicts = [];
+        const act = targetSlot.activity;
+
         const studentObj = students.find(s => s.name === studentName);
-        if (studentObj && hasException(studentObj, targetDate, targetSlot.activity)) {
-            if (!confirm(`${studentName} possui uma exceção (indisponibilidade) nesta data/horário. Deseja forçar esta atribuição?`)) {
-                return;
-            }
+        if (studentObj && hasException(studentObj, targetDate, act)) {
+            conflicts.push('Marcou indisponibilidade (exceção) nesse dia/horário.');
         }
 
-        // Ignore assignments in the slot the student is being moved out of
+        // Ignora o lugar de onde o aluno está saindo
         const isSourceSlot = (dateStr, slot) => dateStr === sourceDate && slot.activity.id == sourceActivityId;
 
-        // 2.4 Check time overlap with the student's other activities on the target day
         const hasTimeOverlap = targetDay.slots.some(s =>
             s !== targetSlot &&
             !isSourceSlot(targetDate, s) &&
             s.assigned.includes(studentName) &&
-            checkOverlap(s.activity.startTime, s.activity.endTime, targetSlot.activity.startTime, targetSlot.activity.endTime)
+            checkOverlap(s.activity.startTime, s.activity.endTime, act.startTime, act.endTime)
         );
-        if (hasTimeOverlap) {
-            if (!confirm(`${studentName} já possui outra atividade em horário sobreposto neste dia. Deseja forçar esta atribuição?`)) {
-                return;
-            }
-        }
+        if (hasTimeOverlap) conflicts.push('Já tem outra atividade no mesmo horário nesse dia.');
 
-        // 2.5 Check rest rule (no plantão on the same day or adjacent days)
-        if (isPlantao(targetSlot.activity.type)) {
+        if (isPlantao(act.type)) {
             const hasPlantaoConflict = (offset) => {
                 const adjDate = getAdjacentDateStr(targetDate, offset);
                 const adjDay = finalSchedule.find(d => d.date === adjDate);
@@ -2207,13 +3044,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 );
             };
             if (hasPlantaoConflict(-1) || hasPlantaoConflict(0) || hasPlantaoConflict(1)) {
-                if (!confirm(`${studentName} já possui um PLANTÃO no mesmo dia, no dia anterior ou posterior. Deseja forçar esta atribuição?`)) {
-                    return;
-                }
+                conflicts.push('Já tem um plantão no mesmo dia, no dia anterior ou no seguinte (sem o descanso entre plantões).');
             }
         }
 
-        // 2.6 Check overnight rest rule (no morning activity right after a night shift)
         {
             const nightRestConflict = (offset, matches) => {
                 const adjDate = getAdjacentDateStr(targetDate, offset);
@@ -2225,47 +3059,77 @@ document.addEventListener('DOMContentLoaded', () => {
                     s.assigned.includes(studentName) && matches(s.activity)
                 );
             };
-            const act = targetSlot.activity;
-            const afterNight = act.startTime < MORNING_REST_CUTOFF &&
-                nightRestConflict(-1, a => isOvernight(a.startTime, a.endTime));
-            const beforeMorning = isOvernight(act.startTime, act.endTime) &&
-                nightRestConflict(1, a => a.startTime < MORNING_REST_CUTOFF);
-            if (afterNight || beforeMorning) {
-                if (!confirm(`${studentName} ${afterNight ? 'fez plantão noturno na noite anterior' : 'tem atividade na manhã seguinte ao plantão noturno'}. Deseja forçar esta atribuição?`)) {
-                    return;
-                }
+            if (act.startTime < MORNING_REST_CUTOFF && nightRestConflict(-1, a => isOvernight(a.startTime, a.endTime))) {
+                conflicts.push('Fez plantão noturno na noite anterior.');
+            }
+            if (isOvernight(act.startTime, act.endTime) && nightRestConflict(1, a => a.startTime < MORNING_REST_CUTOFF)) {
+                conflicts.push('Tem atividade na manhã seguinte a esse plantão noturno.');
             }
         }
 
-        // 3. Perform removal from source (if not from roster)
+        if (conflicts.length > 0) {
+            const ok = await askConfirm({
+                title: `Colocar ${studentName} mesmo assim?`,
+                message: `${act.name} · ${formatDateBR(targetDate)} · ${act.startTime}–${act.endTime}\n\nAtenção:`,
+                details: conflicts,
+                confirmLabel: 'Colocar mesmo assim',
+                cancelLabel: 'Cancelar'
+            });
+            if (!ok) return;
+        }
+
+        // Guarda o estado anterior para o "Desfazer"
+        const sourceDay = sourceDate !== 'roster' ? finalSchedule.find(d => d.date === sourceDate) : null;
+        const sourceSlot = sourceDay ? sourceDay.slots.find(s => s.activity.id == sourceActivityId) : null;
+        const snapshot = {
+            source: sourceSlot ? sourceSlot.assigned.slice() : null,
+            target: targetSlot.assigned.slice(),
+            pins: JSON.parse(JSON.stringify(pinnedAssignments))
+        };
+
+        // Tira do lugar de origem (se não veio da lista de alunos)
         if (sourceDate !== 'roster') {
-            const sourceDay = finalSchedule.find(d => d.date === sourceDate);
-            if (sourceDay) {
-                const sourceSlot = sourceDay.slots.find(s => s.activity.id == sourceActivityId);
-                if (sourceSlot) {
-                    sourceSlot.assigned = sourceSlot.assigned.filter(n => n !== studentName);
-                    sourceSlot.capacityString = `${sourceSlot.assigned.length}/${sourceSlot.activity.studentsCount}`;
-                }
+            if (sourceSlot) {
+                sourceSlot.assigned = sourceSlot.assigned.filter(n => n !== studentName);
+                sourceSlot.capacityString = `${sourceSlot.assigned.length}/${sourceSlot.activity.studentsCount}`;
             }
             removePin(sourceDate, sourceActivityId, studentName);
         }
 
-        // 4. Perform addition to target (manual moves are pinned so re-generation preserves them)
+        // Coloca no destino (trocas manuais ficam fixadas para sobreviver a uma nova geração)
         targetSlot.assigned.push(studentName);
         targetSlot.capacityString = `${targetSlot.assigned.length}/${targetSlot.activity.studentsCount}`;
         addPin(targetDate, targetActivityId, studentName);
 
-        // 5. Update Math (Recalculate all student stats)
-        recalculateAllStats();
+        const refresh = () => {
+            recalculateAllStats();
+            persistSchedule();
+            renderGeneratedResults(lastGeneratedSchedule);
+            renderCalendarView(lastGeneratedSchedule.finalSchedule);
+            renderStudentView(lastGeneratedSchedule.finalSchedule);
+        };
+        refresh();
 
-        // 6. Re-render UI
-        renderGeneratedResults(lastGeneratedSchedule);
-        renderCalendarView(lastGeneratedSchedule.finalSchedule);
-        renderStudentView(lastGeneratedSchedule.finalSchedule);
+        const where = `${act.name} (${formatDateBR(targetDate)} ${act.startTime})`;
+        showToast(sourceDate === 'roster' ? `${studentName} entrou em ${where}. 📌 Fixado.` : `${studentName} foi para ${where}. 📌 Fixado.`, {
+            actionLabel: 'Desfazer',
+            onAction: () => {
+                if (sourceSlot && snapshot.source) {
+                    sourceSlot.assigned = snapshot.source;
+                    sourceSlot.capacityString = `${sourceSlot.assigned.length}/${sourceSlot.activity.studentsCount}`;
+                }
+                targetSlot.assigned = snapshot.target;
+                targetSlot.capacityString = `${targetSlot.assigned.length}/${targetSlot.activity.studentsCount}`;
+                pinnedAssignments = snapshot.pins;
+                savePins();
+                refresh();
+            }
+        });
     }
 
+    // Remover um aluno de uma atividade: sem pergunta, mas com "Desfazer"
     function handleStudentUnassignment(studentName, sourceDate, sourceActivityId) {
-        if (!lastGeneratedSchedule) return;
+        if (!lastGeneratedSchedule || confirmDialogOpen) return;
         const { finalSchedule } = lastGeneratedSchedule;
 
         const sourceDay = finalSchedule.find(d => d.date === sourceDate);
@@ -2273,16 +3137,32 @@ document.addEventListener('DOMContentLoaded', () => {
         const sourceSlot = sourceDay.slots.find(s => s.activity.id == sourceActivityId);
         if (!sourceSlot) return;
 
-        if (confirm(`Deseja remover ${studentName} da atividade ${sourceSlot.activity.name}?`)) {
-            sourceSlot.assigned = sourceSlot.assigned.filter(n => n !== studentName);
-            sourceSlot.capacityString = `${sourceSlot.assigned.length}/${sourceSlot.activity.studentsCount}`;
-            removePin(sourceDate, sourceActivityId, studentName);
+        const previousIndex = sourceSlot.assigned.indexOf(studentName);
+        if (previousIndex === -1) return;
+        const wasPinned = isPinned(sourceDate, sourceActivityId, studentName);
 
+        const refresh = () => {
+            sourceSlot.capacityString = `${sourceSlot.assigned.length}/${sourceSlot.activity.studentsCount}`;
             recalculateAllStats();
+            persistSchedule();
             renderGeneratedResults(lastGeneratedSchedule);
             renderCalendarView(lastGeneratedSchedule.finalSchedule);
             renderStudentView(lastGeneratedSchedule.finalSchedule);
-        }
+        };
+
+        sourceSlot.assigned = sourceSlot.assigned.filter(n => n !== studentName);
+        removePin(sourceDate, sourceActivityId, studentName);
+        refresh();
+
+        showToast(`${studentName} saiu de ${sourceSlot.activity.name} (${formatDateBR(sourceDate)}).`, {
+            actionLabel: 'Desfazer',
+            onAction: () => {
+                if (sourceSlot.assigned.includes(studentName)) return;
+                sourceSlot.assigned.splice(Math.min(previousIndex, sourceSlot.assigned.length), 0, studentName);
+                if (wasPinned) addPin(sourceDate, sourceActivityId, studentName);
+                refresh();
+            }
+        });
     }
 
     function recalculateAllStats() {
@@ -2416,7 +3296,11 @@ document.addEventListener('DOMContentLoaded', () => {
             healthWarningEl.classList.add('hidden');
             return;
         }
-        healthWarningEl.innerHTML = `<strong>Avisos da Escala:</strong><ul>${items.join('')}</ul>`;
+        const hasBlocking = feasibility && (feasibility.errors || []).length > 0;
+        const howTo = hasBlocking || (feasibility && (feasibility.warnings || []).length)
+            ? '<p class="health-howto">💡 Como resolver: confira as <strong>horas por aluno</strong> (passo 1), o <strong>máximo/mínimo de alunos</strong> das atividades (passo 2) e as <strong>indisponibilidades</strong> dos alunos (passo 3). Também dá para gerar assim mesmo e ajustar à mão depois.</p>'
+            : '';
+        healthWarningEl.innerHTML = `<strong>Avisos da Escala:</strong><ul>${items.join('')}</ul>${howTo}`;
         healthWarningEl.classList.remove('hidden');
     }
 
@@ -2464,12 +3348,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (clearPinsBtn) {
-        clearPinsBtn.addEventListener('click', () => {
+        clearPinsBtn.addEventListener('click', async () => {
             if (pinnedAssignments.length === 0) return;
-            if (!confirm(`Remover as ${pinnedAssignments.length} atribuições fixadas? Elas voltarão a ser realocáveis na próxima geração.`)) return;
+            const ok = await askConfirm({
+                title: 'Soltar todos os alunos fixados?',
+                message: `Há ${pinnedAssignments.length} aluno(s) fixado(s) com 📌. A escala atual não muda agora, mas na próxima vez que você gerar a escala esses alunos poderão ser trocados de lugar.`,
+                confirmLabel: 'Soltar todos'
+            });
+            if (!ok) return;
             pinnedAssignments = [];
             savePins();
             if (lastGeneratedSchedule) renderCalendarView(lastGeneratedSchedule.finalSchedule);
+            showToast('Fixações removidas.', { type: 'success' });
         });
     }
     updateClearPinsButton();
@@ -2491,7 +3381,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (exportCsvBtn) {
         exportCsvBtn.addEventListener('click', () => {
             if (!lastGeneratedSchedule || !lastGeneratedSchedule.finalSchedule) {
-                alert('Gere uma escala primeiro.');
+                showToast('Gere uma escala primeiro (botão "✨ Gerar Escala de Rodízio").', { type: 'warning' });
                 return;
             }
             // Semicolon separator + BOM + decimal comma: opens correctly in Excel pt-BR
@@ -2529,23 +3419,69 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             });
             const csv = '\uFEFF' + rows.map(r => r.map(escapeCsv).join(';')).join('\r\n');
-            downloadFile(csv, 'text/csv;charset=utf-8', `escala_${toLocalDateStr(new Date())}.csv`);
+            downloadFile(csv, 'text/csv;charset=utf-8', `escala_${formatDateBR(toLocalDateStr(new Date())).replace(/\//g, '-')}.csv`);
+        });
+    }
+
+    // --- Exportar .xlsx no formato das planilhas montadas à mão (abre no Google Sheets e no Excel) ---
+    // A biblioteca ExcelJS só é baixada quando o botão é usado (o resto do app continua 100% offline).
+    const EXCELJS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js';
+    let excelJsPromise = null;
+    function loadExcelJS() {
+        if (window.ExcelJS) return Promise.resolve(window.ExcelJS);
+        if (!excelJsPromise) {
+            excelJsPromise = new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = EXCELJS_URL;
+                script.onload = () => window.ExcelJS ? resolve(window.ExcelJS) : reject(new Error('ExcelJS não carregou'));
+                script.onerror = () => { excelJsPromise = null; reject(new Error('Falha ao baixar ExcelJS')); };
+                document.head.appendChild(script);
+            });
+        }
+        return excelJsPromise;
+    }
+
+    if (exportXlsxBtn) {
+        exportXlsxBtn.addEventListener('click', async () => {
+            if (!lastGeneratedSchedule || !lastGeneratedSchedule.finalSchedule) {
+                showToast('Gere uma escala primeiro (botão "✨ Gerar Escala de Rodízio").', { type: 'warning' });
+                return;
+            }
+            const originalLabel = exportXlsxBtn.textContent;
+            exportXlsxBtn.disabled = true;
+            exportXlsxBtn.textContent = '⏳ Gerando planilha...';
+            try {
+                await downloadScheduleXlsx();
+            } catch (err) {
+                console.error(err);
+                showToast('Não foi possível gerar a planilha .xlsx. Na primeira vez é preciso estar conectado à internet. Alternativa: "Exportar CSV".', { type: 'error' });
+            } finally {
+                exportXlsxBtn.disabled = false;
+                exportXlsxBtn.textContent = originalLabel;
+            }
         });
     }
 
     // --- Criar Planilha no Google Sheets ---
-    // Sem API/OAuth: copia os dados como TSV (formato que o Sheets separa em
-    // colunas ao colar) e abre uma planilha nova em branco para o usu\u00E1rio colar.
+    // Sem API/OAuth: copia a MESMA grade do .xlsx (cartões coloridos, uma semana embaixo da outra e o
+    // balanço ao lado) como HTML para a área de transferência e abre uma planilha nova para colar.
     //
-    // O copy precisa ser S\u00CDNCRONO e acontecer ANTES do window.open: a Clipboard
-    // API ass\u00EDncrona (navigator.clipboard.writeText) depende do documento estar
-    // em foco, e abrir a nova aba tira o foco antes da promise resolver \u2014 o que
-    // pode falhar silenciosamente enquanto o alerta ainda afirma "copiado".
-    // document.execCommand('copy') \u00E9 s\u00EDncrono, ent\u00E3o termina antes de qualquer
-    // navega\u00E7\u00E3o, o que o torna mais confi\u00E1vel aqui apesar de deprecated.
-    function copyToClipboardSync(text) {
+    // O copy precisa ser SÍNCRONO e acontecer ANTES do window.open: a Clipboard API assíncrona
+    // depende do documento estar em foco, e abrir a nova aba tira o foco antes da promise resolver.
+    // document.execCommand('copy') com um handler de 'copy' é síncrono e permite gravar text/html.
+    function copyRichToClipboardSync(html, text) {
+        let wrote = false;
+        const onCopy = (e) => {
+            if (!e.clipboardData) return;
+            e.clipboardData.setData('text/html', html);
+            e.clipboardData.setData('text/plain', text);
+            e.preventDefault();
+            wrote = true;
+        };
+        document.addEventListener('copy', onCopy);
+        // Alguns navegadores só disparam 'copy' se houver uma seleção
         const textarea = document.createElement('textarea');
-        textarea.value = text;
+        textarea.value = ' ';
         textarea.style.position = 'fixed';
         textarea.style.opacity = '0';
         document.body.appendChild(textarea);
@@ -2554,37 +3490,92 @@ document.addEventListener('DOMContentLoaded', () => {
         let ok = false;
         try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
         document.body.removeChild(textarea);
-        return ok;
+        document.removeEventListener('copy', onCopy);
+        return ok && wrote;
     }
 
-    if (exportSheetsBtn) {
+    // Modal com as instruções: o usuário copia e abre a planilha nova quando quiser (sem alertas do navegador)
+    const sheetsModal = document.getElementById('sheets-modal');
+    const sheetsStatus = document.getElementById('sheets-status');
+
+    function setSheetsStatus(msg, kind) {
+        sheetsStatus.textContent = msg;
+        sheetsStatus.className = 'sheets-status' + (kind ? ' ' + kind : '');
+    }
+
+    function openSheetsModal() {
+        setSheetsStatus('', '');
+        sheetsModal.classList.remove('hidden');
+        document.getElementById('sheets-copy-btn').focus();
+    }
+
+    function closeSheetsModal() {
+        sheetsModal.classList.add('hidden');
+    }
+
+    async function downloadScheduleXlsx() {
+        const ExcelJS = await loadExcelJS();
+        const buffer = await buildScheduleWorkbook(ExcelJS, scheduleExportData()).xlsx.writeBuffer();
+        const range = (rotationConfig.startDate && rotationConfig.endDate)
+            ? `${formatDateBR(rotationConfig.startDate)}_a_${formatDateBR(rotationConfig.endDate)}`.replace(/\//g, '-')
+            : formatDateBR(toLocalDateStr(new Date())).replace(/\//g, '-');
+        const filename = `escala_${range}.xlsx`;
+        downloadFile(buffer, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', filename);
+        return filename;
+    }
+
+    if (exportSheetsBtn && sheetsModal) {
         exportSheetsBtn.addEventListener('click', () => {
             if (!lastGeneratedSchedule || !lastGeneratedSchedule.finalSchedule) {
-                alert('Gere uma escala primeiro.');
+                showToast('Gere uma escala primeiro (botão "✨ Gerar Escala de Rodízio").', { type: 'warning' });
                 return;
             }
-            const escapeTsv = (v) => String(v ?? '').replace(/\t/g, ' ').replace(/\r?\n/g, ' ');
-            const rows = [['Data', 'Atividade', 'Alunos Alocados']];
-            lastGeneratedSchedule.finalSchedule.forEach(day => {
-                day.slots.forEach(slot => {
-                    const title = `${slot.activity.startTime} ${slot.activity.name}`;
-                    const names = (slot.assigned && slot.assigned.length > 0) ? slot.assigned.join(', ') : '(vago)';
-                    rows.push([formatDateBR(day.date), title, names]);
-                });
-            });
-            const tsv = rows.map(r => r.map(escapeTsv).join('\t')).join('\n');
+            openSheetsModal();
+        });
 
-            const copied = copyToClipboardSync(tsv);
-            if (copied) {
-                window.open('https://sheets.new', '_blank');
-                alert('Dados copiados! Uma planilha nova do Google Sheets foi aberta em outra aba \u2014 clique na c\u00E9lula A1 e cole (Ctrl+V ou Cmd+V) para preencher a escala.');
-            } else {
-                // N\u00E3o foi poss\u00EDvel copiar automaticamente (ex: navegador bloqueou):
-                // baixa um .tsv que pode ser importado (Arquivo > Importar) ou colado manualmente.
-                downloadFile(tsv, 'text/tab-separated-values;charset=utf-8', `escala_google_sheets_${toLocalDateStr(new Date())}.tsv`);
-                window.open('https://sheets.new', '_blank');
-                alert('N\u00E3o foi poss\u00EDvel copiar automaticamente para a \u00E1rea de transfer\u00EAncia. Baixamos um arquivo .tsv \u2014 na planilha que abriu, use Arquivo > Importar > Fazer upload para carreg\u00E1-lo.');
+        document.getElementById('sheets-copy-btn').addEventListener('click', () => {
+            let clip;
+            try {
+                clip = buildSheetsClipboard(scheduleExportData());
+            } catch (err) {
+                console.error(err);
+                setSheetsStatus('Não foi possível montar os dados: ' + err.message, 'error');
+                return;
             }
+            if (copyRichToClipboardSync(clip.html, clip.text)) {
+                setSheetsStatus('✅ Dados copiados! Agora clique em “Nova planilha” e cole na célula A1.', 'success');
+            } else {
+                setSheetsStatus('O navegador não deixou copiar automaticamente. Use a opção “uma aba por semana” logo abaixo (Baixar .xlsx).', 'error');
+                sheetsModal.querySelector('.sheets-full').open = true;
+            }
+        });
+
+        const openNewSheet = () => window.open('https://sheets.new', '_blank', 'noopener');
+        document.getElementById('sheets-new-btn').addEventListener('click', openNewSheet);
+        document.getElementById('sheets-new-btn-2').addEventListener('click', openNewSheet);
+
+        const sheetsXlsxBtn = document.getElementById('sheets-xlsx-btn');
+        sheetsXlsxBtn.addEventListener('click', async () => {
+            const label = sheetsXlsxBtn.textContent;
+            sheetsXlsxBtn.disabled = true;
+            sheetsXlsxBtn.textContent = '⏳ Gerando...';
+            try {
+                const filename = await downloadScheduleXlsx();
+                sheetsXlsxBtn.textContent = `✅ Baixado: ${filename}`;
+                setTimeout(() => { sheetsXlsxBtn.textContent = label; }, 4000);
+            } catch (err) {
+                console.error(err);
+                sheetsXlsxBtn.textContent = label;
+                setSheetsStatus('Não foi possível gerar o .xlsx (é preciso internet na primeira vez).', 'error');
+            } finally {
+                sheetsXlsxBtn.disabled = false;
+            }
+        });
+
+        sheetsModal.querySelector('.sheets-close').addEventListener('click', closeSheetsModal);
+        sheetsModal.addEventListener('click', (e) => { if (e.target === sheetsModal) closeSheetsModal(); });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !sheetsModal.classList.contains('hidden')) closeSheetsModal();
         });
     }
 
@@ -2662,7 +3653,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (viewToggleBtn) {
         viewToggleBtn.addEventListener('click', () => {
             if (!lastGeneratedSchedule) {
-                alert('Gere uma escala primeiro.');
+                showToast('Gere uma escala primeiro (botão "✨ Gerar Escala de Rodízio").', { type: 'warning' });
                 return;
             }
             currentView = currentView === 'calendar' ? 'student' : 'calendar';
@@ -2782,7 +3773,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return { errors, warnings };
     }
 
-    function renderGeneratedResults(scheduleData) {
+    function renderGeneratedResults(scheduleData, { scroll = false } = {}) {
         if (!scheduleData) return;
         
         const {
@@ -2796,19 +3787,23 @@ document.addEventListener('DOMContentLoaded', () => {
         resultsContainer.classList.remove('hidden');
 
         const showGroupHours = !!rotationConfig.twoGroupsEnabled;
+        // Coluna/exigência de plantão só existe se a escala tiver algum PLANTÃO
+        const showPlantao = (scheduleData.finalSchedule || []).some(day =>
+            (day.slots || []).some(slot => isPlantao(slot.activity.type)));
         const [group1Label, group2Label] = showGroupHours ? [groupDisplayName('1'), groupDisplayName('2')] : ['', ''];
 
         // 1. Render Stats
         let statsHtml = `
             <h3>Equilíbrio de Carga Horária e Requisitos</h3>
-            <table class="stats-table">
+            <p class="field-hint">Horas: quanto cada aluno ficou escalado comparado com a meta. Atividades cobertas: se o aluno passou pelo menos uma vez por cada atividade diferente (passe o mouse para ver o que falta).</p>
+            <div class="table-scroll"><table class="stats-table">
                 <thead>
                     <tr>
                         <th>Nome do Aluno</th>
                         ${showGroupHours
                             ? `<th>Horas (${group1Label})</th><th>Horas (${group2Label})</th>`
                             : '<th>Horas</th>'}
-                        <th>Plantão</th>
+                        ${showPlantao ? '<th>Plantão</th>' : ''}
                         <th>Atividades Cobertas</th>
                         <th>Status</th>
                     </tr>
@@ -2847,7 +3842,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ? '<span class="pill pill-success">✅ Completo</span>'
                 : `<span class="pill pill-warning">⚠️ ${coveredCount}/${totalMandatory}</span>`;
 
-            const isComplete = (showGroupHours ? groupsComplete : diff <= 0) && stat.hasPlantao && coveredCount === totalMandatory;
+            const isComplete = (showGroupHours ? groupsComplete : diff <= 0) && (!showPlantao || stat.hasPlantao) && coveredCount === totalMandatory;
             const overallPill = isComplete
                 ? '<span class="pill pill-success">✅ Completo</span>'
                 : '<span class="pill pill-warning">⌛ Pendente</span>';
@@ -2860,38 +3855,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 <tr>
                     <td>${stat.name}</td>
                     ${hoursCellsHtml}
-                    <td style="text-align: center">${plantaoPill}</td>
+                    ${showPlantao ? `<td style="text-align: center">${plantaoPill}</td>` : ''}
                     <td title="${coverageTitle}" style="cursor: help">${coveragePill}</td>
                     <td>${overallPill}</td>
                 </tr>
             `;
         });
-        statsHtml += '</tbody></table>';
+        statsHtml += '</tbody></table></div>';
         statisticsOutput.innerHTML = statsHtml;
         
-        // Scroll to results
-        resultsContainer.scrollIntoView({ behavior: 'smooth' });
+        // Rola até o resultado só quando a escala acabou de ser gerada (não a cada troca manual)
+        if (scroll) resultsContainer.scrollIntoView({ behavior: 'smooth' });
     }
 
     // Export Data
     const exportBtn = document.getElementById('export-btn');
     exportBtn.addEventListener('click', () => {
         // Deep clone lastGeneratedSchedule to avoid modifying the live state
-        let exportedSchedule = null;
-        if (lastGeneratedSchedule) {
-            exportedSchedule = JSON.parse(JSON.stringify(lastGeneratedSchedule));
-            // Convert coveredActivities Sets to Arrays for JSON serialization
-            if (exportedSchedule.studentStats) {
-                exportedSchedule.studentStats.forEach(stat => {
-                    if (lastGeneratedSchedule.studentStats) {
-                        const originalStat = lastGeneratedSchedule.studentStats.find(s => s.id === stat.id);
-                        if (originalStat && originalStat.coveredActivities instanceof Set) {
-                            stat.coveredActivities = Array.from(originalStat.coveredActivities);
-                        }
-                    }
-                });
-            }
-        }
+        const exportedSchedule = serializeSchedule(lastGeneratedSchedule);
 
         const dataToExport = {
             version: 1,
@@ -2902,7 +3883,7 @@ document.addEventListener('DOMContentLoaded', () => {
             lastGeneratedSchedule: exportedSchedule
         };
 
-        const dateStr = toLocalDateStr(new Date());
+        const dateStr = formatDateBR(toLocalDateStr(new Date())).replace(/\//g, '-');
         downloadFile(JSON.stringify(dataToExport, null, 2), 'application/json', `backup_escalas_med_${dateStr}.json`);
     });
 
@@ -2919,130 +3900,126 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!file) return;
 
         const reader = new FileReader();
-        reader.onload = (event) => {
-            try {
-                const importedData = JSON.parse(event.target.result);
-
-                // Structural validation with clear messages (bad backups used to corrupt state silently)
-                const validation = validateBackupData(importedData);
-                if (validation.errors.length > 0) {
-                    const shown = validation.errors.slice(0, 15);
-                    const extra = validation.errors.length > shown.length ? `\n... e mais ${validation.errors.length - shown.length} erro(s).` : '';
-                    throw new Error('o arquivo contém problemas e não foi importado:\n\n- ' + shown.join('\n- ') + extra);
-                }
-
-                let confirmMsg = 'Importar este arquivo substituirá seus dados atuais. Continuar?';
-                if (validation.warnings.length > 0) {
-                    confirmMsg = 'Avisos encontrados no arquivo:\n\n- ' + validation.warnings.slice(0, 10).join('\n- ') + '\n\n' + confirmMsg;
-                }
-
-                if (confirm(confirmMsg)) {
-                    // Update state
-                    activities = importedData.activities;
-                    // Ensure all activities have a type (for backward compatibility) and trim names
-                    activities.forEach(a => {
-                        if (!a.type) a.type = 'PLANTÃO';
-                        if (a.name) a.name = a.name.trim();
-                    });
-
-                    // IMPORTANT: Update rotationConfig IMMEDIATELY so it's available for calculations
-                    rotationConfig = importedData.config;
-                    if (rotationConfig.twoGroupsEnabled) {
-                        activities.forEach(a => {
-                            if (a.activityGroup !== '1' && a.activityGroup !== '2') a.activityGroup = '1';
-                        });
-                    }
-                    students = importedData.students || [];
-                    lastGeneratedSchedule = (importedData.lastGeneratedSchedule && Array.isArray(importedData.lastGeneratedSchedule.finalSchedule))
-                        ? importedData.lastGeneratedSchedule
-                        : null;
-                    pinnedAssignments = Array.isArray(importedData.pinnedAssignments) ? importedData.pinnedAssignments : [];
-                    savePins();
-
-                    // Ensure all students have a color and affinity group
-                    students.forEach(s => {
-                        if (!s.color) s.color = getRandomColor();
-                        if (!s.affinityGroup) s.affinityGroup = 'A';
-                    });
-
-                    // Update localStorage
-                    localStorage.setItem('med_rotations_activities', JSON.stringify(activities));
-                    localStorage.setItem('med_rotations_config', JSON.stringify(rotationConfig));
-                    localStorage.setItem('med_rotations_students', JSON.stringify(students));
-
-                    // Update UI
-                    document.getElementById('rotation-start').value = rotationConfig.startDate || '';
-                    document.getElementById('rotation-end').value = rotationConfig.endDate || '';
-                    document.getElementById('required-hours').value = rotationConfig.requiredHours || '';
-                    document.getElementById('two-groups-toggle').checked = !!rotationConfig.twoGroupsEnabled;
-                    document.getElementById('group1-name').value = (rotationConfig.groupNames && rotationConfig.groupNames[0]) || 'Grupo 1';
-                    document.getElementById('group2-name').value = (rotationConfig.groupNames && rotationConfig.groupNames[1]) || 'Grupo 2';
-                    document.getElementById('group1-hours').value = rotationConfig.requiredHoursGroup1 || '';
-                    document.getElementById('group2-hours').value = rotationConfig.requiredHoursGroup2 || '';
-                    currentBlackoutPeriods = [...(rotationConfig.blackoutPeriods || [])];
-                    renderBlackoutChips();
-                    updateTwoGroupsUI();
-                    renderStudents();
-
-                    if (lastGeneratedSchedule) {
-                        // Trim names inside the schedule data for consistency
-                        if (lastGeneratedSchedule.finalSchedule) {
-                            lastGeneratedSchedule.finalSchedule.forEach(day => {
-                                if (day.slots) {
-                                    day.slots.forEach(slot => {
-                                        if (slot.activity && slot.activity.name) {
-                                            slot.activity.name = slot.activity.name.trim();
-                                        }
-                                    });
-                                }
-                            });
-                        }
-
-                        // Ensure mandatoryActivities is recalculated for consistency
-                        lastGeneratedSchedule.mandatoryActivities = calculateMandatoryActivities(activities, rotationConfig);
-                        
-                        // Re-initialize studentStats from the imported students list to ensure they are fresh and clean
-                        lastGeneratedSchedule.studentStats = students.map(s => ({
-                            id: s.id,
-                            name: s.name,
-                            affinityGroup: s.affinityGroup,
-                            totalHours: 0,
-                            requiredHours: rotationConfig.requiredHours || 0,
-                            hoursByGroup: rotationConfig.twoGroupsEnabled ? { 1: 0, 2: 0 } : undefined,
-                            requiredHoursByGroup: rotationConfig.twoGroupsEnabled
-                                ? { 1: rotationConfig.requiredHoursGroup1 || 0, 2: rotationConfig.requiredHoursGroup2 || 0 }
-                                : undefined,
-                            coveredActivities: new Set(),
-                            hasPlantao: false
-                        }));
-
-                        recalculateAllStats();
-                        renderGeneratedResults(lastGeneratedSchedule);
-                        renderCalendarView(lastGeneratedSchedule.finalSchedule);
-                        renderStudentView(lastGeneratedSchedule.finalSchedule);
-                    } else {
-                        resultsContainer.classList.add('hidden');
-                    }
-
-                    alert('Dados importados com sucesso!');
-                }
-            } catch (error) {
-                alert('Erro ao importar dados: ' + error.message);
-            }
+        reader.onload = async (event) => {
             importFile.value = '';
+            let importedData;
+            try {
+                importedData = JSON.parse(event.target.result);
+            } catch (err) {
+                showToast('Esse arquivo não é um backup válido. Escolha o arquivo .json baixado em "Baixar backup (.json)".', { type: 'error' });
+                return;
+            }
+
+            // Backups antigos (ou editados à mão) podem ter datas dd/mm/aaaa ou horários 7:00 / 7:00 PM
+            normalizeBackupFormats(importedData);
+
+            // Validação com mensagens claras (backups ruins corrompiam o estado em silêncio)
+            const validation = validateBackupData(importedData);
+            if (validation.errors.length > 0) {
+                const shown = validation.errors.slice(0, 12);
+                if (validation.errors.length > shown.length) shown.push(`... e mais ${validation.errors.length - shown.length} problema(s).`);
+                await askConfirm({
+                    title: 'Não foi possível importar',
+                    message: 'O arquivo tem problemas e nada foi alterado. Detalhes:',
+                    details: shown,
+                    confirmLabel: 'Entendi',
+                    cancelLabel: 'Fechar'
+                });
+                return;
+            }
+
+            const ok = await askConfirm({
+                title: 'Importar backup?',
+                message: `Isso vai SUBSTITUIR tudo o que está no app agora (período, ${importedData.activities.length} atividade(s), ${(importedData.students || []).length} aluno(s) e a escala gerada).` +
+                    (validation.warnings.length ? '\n\nAvisos encontrados no arquivo:' : ''),
+                details: validation.warnings.slice(0, 10),
+                confirmLabel: 'Importar e substituir',
+                extraLabel: '⬇️ Baixar backup do que está aqui antes',
+                onExtra: () => exportBtn.click()
+            });
+            if (!ok) return;
+
+            try {
+                activities = importedData.activities;
+                // Garante tipo (compatibilidade) e nomes sem espaços sobrando
+                activities.forEach(a => {
+                    if (!a.type) a.type = 'PLANTÃO';
+                    if (a.name) a.name = a.name.trim();
+                });
+
+                // rotationConfig precisa estar atualizado antes de qualquer cálculo
+                rotationConfig = importedData.config;
+                if (rotationConfig.twoGroupsEnabled) {
+                    activities.forEach(a => {
+                        if (a.activityGroup !== '1' && a.activityGroup !== '2') a.activityGroup = '1';
+                    });
+                }
+                students = importedData.students || [];
+                pinnedAssignments = Array.isArray(importedData.pinnedAssignments) ? importedData.pinnedAssignments : [];
+                savePins();
+
+                // Garante cor e grupo de afinidade
+                students.forEach(s => {
+                    if (!s.color) s.color = getRandomColor();
+                    if (!s.affinityGroup) s.affinityGroup = 'A';
+                });
+
+                localStorage.setItem('med_rotations_activities', JSON.stringify(activities));
+                localStorage.setItem('med_rotations_config', JSON.stringify(rotationConfig));
+                localStorage.setItem('med_rotations_students', JSON.stringify(students));
+
+                // Atualiza a tela
+                document.getElementById('rotation-start').value = rotationConfig.startDate || '';
+                document.getElementById('rotation-end').value = rotationConfig.endDate || '';
+                document.getElementById('required-hours').value = rotationConfig.requiredHours || '';
+                document.getElementById('two-groups-toggle').checked = !!rotationConfig.twoGroupsEnabled;
+                document.getElementById('group1-name').value = (rotationConfig.groupNames && rotationConfig.groupNames[0]) || 'Grupo 1';
+                document.getElementById('group2-name').value = (rotationConfig.groupNames && rotationConfig.groupNames[1]) || 'Grupo 2';
+                document.getElementById('group1-hours').value = rotationConfig.requiredHoursGroup1 || '';
+                document.getElementById('group2-hours').value = rotationConfig.requiredHoursGroup2 || '';
+                currentBlackoutPeriods = [...(rotationConfig.blackoutPeriods || [])];
+                renderBlackoutChips();
+                updateTwoGroupsUI();
+                renderStudents();
+
+                const sched = importedData.lastGeneratedSchedule;
+                if (!(sched && Array.isArray(sched.finalSchedule) && restoreSchedule(sched))) {
+                    lastGeneratedSchedule = null;
+                    resultsContainer.classList.add('hidden');
+                }
+                persistSchedule();
+                markScheduleFresh();
+                updateProgress();
+
+                showToast(lastGeneratedSchedule
+                    ? '✅ Backup importado, com a escala que estava salva nele.'
+                    : '✅ Backup importado. Agora é só clicar em "Gerar Escala de Rodízio".', { type: 'success' });
+            } catch (error) {
+                console.error(error);
+                showToast('Erro ao importar dados: ' + error.message, { type: 'error' });
+            }
         };
         reader.readAsText(file);
     });
 
     // Delete All Data
     const deleteAllBtn = document.getElementById('delete-all-btn');
-    deleteAllBtn.addEventListener('click', () => {
-        if (confirm('Tem certeza de que deseja excluir TODOS os dados? Esta ação não pode ser desfeita.')) {
+    deleteAllBtn.addEventListener('click', async () => {
+        const ok = await askConfirm({
+            title: 'Começar do zero?',
+            message: 'Isso apaga o período, todas as atividades, todos os alunos e a escala gerada deste navegador. Não dá para desfazer.\n\nDica: baixe um backup antes. Ele pode ser importado depois para recuperar tudo.',
+            confirmLabel: 'Excluir tudo',
+            danger: true,
+            extraLabel: '⬇️ Baixar backup antes',
+            onExtra: () => exportBtn.click()
+        });
+        if (ok) {
             // Clear localStorage
             localStorage.removeItem('med_rotations_activities');
             localStorage.removeItem('med_rotations_config');
             localStorage.removeItem('med_rotations_students');
             localStorage.removeItem('med_rotations_pins');
+            localStorage.removeItem(SCHEDULE_STORAGE_KEY);
 
             // Reset state
             activities = [];
@@ -3086,8 +4063,28 @@ document.addEventListener('DOMContentLoaded', () => {
             renderBlackoutChips();
             
             resultsContainer.classList.add('hidden');
-            
-            alert('Todos os dados foram excluídos com sucesso.');
+            markScheduleFresh();
+            updateProgress();
+
+            showToast('Todos os dados foram excluídos.', { type: 'success' });
         }
     });
+    // --- Ao abrir a página: recoloca a última escala gerada (com as trocas manuais) ---
+    const staleBtn = document.getElementById('stale-regenerate-btn');
+    if (staleBtn && staleBtn.addEventListener) staleBtn.addEventListener('click', () => generateBtn.click());
+
+    try {
+        const savedSchedule = prefs.get(SCHEDULE_STORAGE_KEY);
+        if (savedSchedule) {
+            const parsed = normalizeBackupFormats({ lastGeneratedSchedule: JSON.parse(savedSchedule) }).lastGeneratedSchedule;
+            if (restoreSchedule(parsed) && prefs.get('med_rotations_schedule_stale') === '1') {
+                const banner = document.getElementById('stale-banner');
+                if (banner && banner.classList) banner.classList.remove('hidden');
+            }
+        }
+    } catch (e) {
+        console.warn('Não foi possível recuperar a escala salva:', e);
+        prefs.remove(SCHEDULE_STORAGE_KEY);
+    }
+    updateProgress();
 });

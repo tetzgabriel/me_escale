@@ -23,19 +23,38 @@
                 <a href="#section-alunos">Alunos</a>
                 <a href="#section-gerar" class="cta">✨ Gerar Escala</a>
                 <a href="#section-dados">Dados</a>
+                <a href="#guia" id="show-guide-link" class="nav-help" title="Como usar o app">❓ Ajuda</a>
             </nav>
         </div>
     </header>
 
     <main class="page">
+        <section class="guide-card" id="guia" aria-labelledby="guide-title">
+            <div class="guide-head">
+                <div>
+                    <h2 id="guide-title">👋 Como montar a escala em 4 passos</h2>
+                    <p class="section-hint">Tudo fica salvo neste navegador automaticamente. Para usar em outro computador, baixe um backup em <a href="#section-dados">Dados</a>.</p>
+                </div>
+                <button type="button" id="hide-guide-btn" class="secondary-btn guide-hide">Entendi, esconder</button>
+            </div>
+            <ol class="guide-steps">
+                <li data-step="periodo"><a href="#section-periodo"><span class="guide-check" aria-hidden="true"></span><strong>Período</strong><span>Datas do rodízio, horas que cada aluno precisa cumprir e feriados.</span></a></li>
+                <li data-step="atividades"><a href="#section-atividades"><span class="guide-check" aria-hidden="true"></span><strong>Atividades</strong><span>Plantões e ambulatórios de <em>uma semana</em>. Eles se repetem em todas as semanas.</span></a></li>
+                <li data-step="alunos"><a href="#section-alunos"><span class="guide-check" aria-hidden="true"></span><strong>Alunos</strong><span>Nome de cada aluno e os dias em que ele não pode (provas, viagens…).</span></a></li>
+                <li data-step="gerar"><a href="#section-gerar"><span class="guide-check" aria-hidden="true"></span><strong>Gerar e compartilhar</strong><span>O app distribui todo mundo. Ajuste arrastando os nomes e envie pelo Google Sheets, Excel ou PDF.</span></a></li>
+            </ol>
+        </section>
+
         <section class="global-settings" id="section-periodo">
             <div class="section-heading">
                 <span class="step-badge">1</span>
                 <div>
                     <h2>Período da Escala e Requisitos</h2>
-                    <p class="section-hint">Defina o intervalo de datas e a carga horária exigida por aluno.</p>
+                    <p class="section-hint">Defina o intervalo de datas e a carga horária exigida por aluno. As mudanças são salvas sozinhas.</p>
                 </div>
             </div>
+            <div class="settings-grid">
+            <div class="settings-main">
             <div class="form-row">
                 <div class="form-group">
                     <label for="rotation-start">Data de Início</label>
@@ -48,11 +67,13 @@
             </div>
             <div class="form-group checkbox-field">
                 <label for="two-groups-toggle"><input type="checkbox" id="two-groups-toggle"> Rodízio com 2 grupos de atividades (Ex.: Urgência e Emergência + Saúde Mental)</label>
+                <p class="field-hint">Marque só se cada aluno precisa cumprir horas separadas em duas áreas. Na maioria dos rodízios, deixe desmarcado.</p>
             </div>
             <div class="form-row" id="single-hours-row">
                 <div class="form-group">
                     <label for="required-hours">Horas por Aluno</label>
-                    <input type="number" id="required-hours" min="0" step="0.5" placeholder="ex: 40">
+                    <input type="number" id="required-hours" min="0" step="0.5" placeholder="ex: 40" inputmode="decimal">
+                    <p class="field-hint">Total de horas que cada aluno precisa cumprir no rodízio inteiro (está no plano de ensino).</p>
                 </div>
             </div>
             <div class="form-row hidden" id="two-groups-row">
@@ -73,9 +94,11 @@
                     <input type="number" id="group2-hours" min="0" step="0.5" placeholder="ex: 40">
                 </div>
             </div>
+            </div>
+            <div class="settings-side">
             <div class="exceptions-section">
                 <label>Períodos sem Atividades (recesso, feriados etc.)</label>
-                <p class="field-hint">Nesses intervalos, nenhuma atividade será agendada para ninguém.</p>
+                <p class="field-hint">Feriados, recesso, semana de provas… Nesses dias ninguém é escalado. Para um dia só, deixe a segunda data vazia.</p>
                 <div class="form-row">
                     <input type="date" id="blackout-start">
                     <span>até</span>
@@ -84,7 +107,12 @@
                 </div>
                 <div id="current-blackout-list" class="tag-container"></div>
             </div>
-            <button type="button" id="save-global-dates">💾 Salvar Configurações</button>
+            </div>
+            </div>
+            <div class="save-row">
+                <button type="button" id="save-global-dates">💾 Salvar Configurações</button>
+                <span id="config-save-status" class="save-status" role="status" aria-live="polite"></span>
+            </div>
         </section>
 
         <div class="step-block" id="section-atividades">
@@ -93,10 +121,11 @@
                     <span class="step-badge">2</span>
                     <div>
                         <h2>Atividades Clínicas</h2>
-                        <p class="section-hint">Cadastre os plantões e ambulatórios que vão compor a escala.</p>
+                        <p class="section-hint">Cadastre a <strong>semana típica</strong>: cada plantão ou ambulatório com dia e horário. O app repete isso em todas as semanas do período.</p>
                     </div>
                 </div>
                 <form id="activity-form">
+                    <div class="form-row">
                     <div class="form-group">
                         <label for="day">Dia da Semana</label>
                         <select id="day" required>
@@ -110,8 +139,6 @@
                             <option value="Sunday">Domingo</option>
                         </select>
                     </div>
-
-                    <div class="form-row">
                         <div class="form-group">
                             <label for="start-hour">Hora de Início</label>
                             <input type="time" id="start-hour" required>
@@ -122,46 +149,52 @@
                         </div>
                     </div>
 
-                    <div class="form-group">
-                        <label for="activity-name">Nome da Atividade</label>
-                        <input type="text" id="activity-name" placeholder="ex: Pediatria" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="activity-type">Tipo de Atividade</label>
-                        <select id="activity-type" required>
-                            <option value="PLANTÃO">PLANTÃO</option>
-                            <option value="AMBULATORIO">AMBULATORIO</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group hidden" id="activity-group-field">
-                        <label for="activity-group">Grupo de Atividade</label>
-                        <select id="activity-group"></select>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="location">Local</label>
-                        <input type="text" id="location" placeholder="ex: Hospital Universitário" required>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="activity-name">Nome da Atividade</label>
+                            <input type="text" id="activity-name" placeholder="ex: Pediatria" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="location">Local</label>
+                            <input type="text" id="location" placeholder="ex: Hospital Universitário" required>
+                        </div>
                     </div>
 
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="students-number">Número de Alunos (Máx)</label>
-                            <input type="number" id="students-number" min="1" placeholder="ex: 4" required>
+                            <label for="activity-type">Tipo de Atividade</label>
+                            <select id="activity-type" required>
+                                <option value="" selected disabled>Selecione o tipo</option>
+                                <option value="PLANTÃO">Plantão</option>
+                                <option value="AMBULATORIO">Ambulatório</option>
+                            </select>
+                            <p class="field-hint">Plantão: o app garante descanso (ninguém pega plantão em dias seguidos).</p>
                         </div>
-                        <div class="form-group">
-                            <label for="min-students-number">Mínimo de Alunos</label>
-                            <input type="number" id="min-students-number" min="0" value="1" placeholder="ex: 1" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="hours-count">Carga Horária</label>
-                            <input type="number" id="hours-count" step="0.5" min="0" placeholder="ex: 4.5" required>
+                        <div class="form-group hidden" id="activity-group-field">
+                            <label for="activity-group">Grupo de Atividade</label>
+                            <select id="activity-group"></select>
                         </div>
                     </div>
 
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="students-number">Máximo de Alunos</label>
+                            <input type="number" id="students-number" min="1" placeholder="ex: 4" required inputmode="numeric">
+                        </div>
+                        <div class="form-group">
+                            <label for="min-students-number">Mínimo de Alunos</label>
+                            <input type="number" id="min-students-number" min="0" value="1" placeholder="ex: 1" required inputmode="numeric">
+                        </div>
+                        <div class="form-group">
+                            <label for="hours-count">Carga Horária</label>
+                            <input type="number" id="hours-count" step="0.5" min="0" placeholder="ex: 4.5" required inputmode="decimal">
+                        </div>
+                    </div>
+                    <p class="field-hint form-hint-row">Máximo: quantos alunos cabem. Mínimo: quantos precisam estar lá. A carga horária é calculada pelo horário; mude se houver intervalo.</p>
+
                     <div class="exceptions-section">
                         <label>Exceções (Dias ou intervalos em que a atividade não ocorrerá)</label>
+                        <p class="field-hint">Só para dias em que <em>esta</em> atividade não acontece. Feriados para todos ficam no passo 1.</p>
                         <div class="form-row">
                             <input type="date" id="exception-date">
                             <span>até (opcional)</span>
@@ -184,7 +217,7 @@
                     <span class="toggle-icon">▶</span>
                 </div>
                 <div id="activities-container" class="collapsible-content hidden">
-                    <p class="empty-msg">Nenhuma atividade adicionada ainda.</p>
+                    <p class="empty-msg">Nenhuma atividade ainda. Comece pelo plantão ou ambulatório de segunda-feira e vá adicionando a semana.</p>
                 </div>
             </section>
         </div>
@@ -195,11 +228,12 @@
                     <span class="step-badge">3</span>
                     <div>
                         <h2>Gerenciamento de Alunos</h2>
-                        <p class="section-hint">Cadastre os alunos, o grupo de afinidade, preferências e indisponibilidades.</p>
+                        <p class="section-hint">Cadastre cada aluno. Preferências e indisponibilidades são opcionais.</p>
                     </div>
                 </div>
                 <form id="student-form">
-                    <div class="form-group">
+                    <div class="form-row">
+                    <div class="form-group student-name-group">
                         <label for="student-name">Nome do Aluno</label>
                         <input type="text" id="student-name" placeholder="ex: João Silva" required>
                     </div>
@@ -212,9 +246,12 @@
                             <option value="C">C</option>
                         </select>
                     </div>
+                    </div>
+                    <p class="field-hint form-hint-row">Grupo de afinidade: alunos do mesmo grupo tendem a ficar juntos (ex.: quem divide carona). Se não importa, deixe todos no A.</p>
 
                     <div class="preferences-section">
                         <label>Datas e Horários Preferenciais (Horários opcionais, vazio = dia todo)</label>
+                        <p class="field-hint">Dias em que o aluno <em>gostaria</em> de estar escalado. O app tenta, mas não garante.</p>
                         <div class="form-row time-input-row">
                             <input type="date" id="student-preferred-date">
                             <div class="time-range">
@@ -229,6 +266,7 @@
 
                     <div class="exceptions-section">
                         <label>Exceções e Horários do Aluno (Indisponibilidade, vazio = dia todo)</label>
+                        <p class="field-hint">Dias em que o aluno <strong>não pode</strong> (prova, consulta, viagem). O app nunca escala nesses horários.</p>
                         <div class="form-row time-input-row">
                             <input type="date" id="student-exception-date">
                             <div class="time-range">
@@ -254,7 +292,7 @@
                     <span class="toggle-icon">▶</span>
                 </div>
                 <div id="students-container" class="collapsible-content hidden">
-                    <p class="empty-msg">Nenhum aluno adicionado ainda.</p>
+                    <p class="empty-msg">Nenhum aluno ainda. Digite o nome no formulário e clique em "Adicionar Aluno".</p>
                 </div>
             </section>
         </div>
@@ -264,30 +302,53 @@
                 <span class="step-badge">4</span>
                 <div>
                     <h2>Gerar Escala de Rodízio</h2>
-                    <p class="section-hint">O algoritmo equilibra horas, respeita exceções e prioriza afinidades e preferências.</p>
+                    <p class="section-hint">O app distribui os alunos equilibrando as horas e respeitando feriados, indisponibilidades e o descanso entre plantões. Pode gerar quantas vezes quiser.</p>
                 </div>
             </div>
             <button type="button" id="generate-btn">✨ Gerar Escala de Rodízio</button>
             <div id="health-warning" class="hidden health-alert"></div>
             <div id="results-container" class="hidden">
+                <div id="stale-banner" class="stale-banner hidden" role="status">
+                    <span>⚠️ Você mudou o período, as atividades ou os alunos depois de gerar esta escala. Gere de novo para aplicar as mudanças (quem está fixado com 📌 continua no lugar).</span>
+                    <button type="button" id="stale-regenerate-btn">🔄 Gerar de novo</button>
+                </div>
                 <div class="results-header">
                     <h2>Escala Gerada</h2>
                     <div class="view-controls">
                         <div class="action-btns">
-                            <button type="button" id="view-toggle-btn" class="secondary-btn">👤 Visão por Aluno</button>
-                            <button type="button" id="export-csv-btn" class="secondary-btn">📊 Exportar CSV (Excel)</button>
-                            <button type="button" id="export-sheets-btn" class="secondary-btn">🟢 Criar Planilha (Google Sheets)</button>
-                            <button type="button" id="print-btn" class="secondary-btn">🖨️ Imprimir / PDF</button>
-                            <button type="button" id="clear-pins-btn" class="secondary-btn hidden">Limpar Fixados (0)</button>
+                            <div class="toolbar-group">
+                                <span class="toolbar-label">Compartilhar</span>
+                                <button type="button" id="export-sheets-btn" class="secondary-btn share-primary">🟢 Google Sheets</button>
+                                <button type="button" id="export-xlsx-btn" class="secondary-btn">📗 Excel (.xlsx)</button>
+                                <button type="button" id="print-btn" class="secondary-btn">🖨️ Imprimir / PDF</button>
+                                <button type="button" id="export-csv-btn" class="secondary-btn" title="Lista simples, uma linha por aluno e atividade">📊 CSV</button>
+                            </div>
+                            <div class="toolbar-group">
+                                <span class="toolbar-label">Ver</span>
+                                <button type="button" id="view-toggle-btn" class="secondary-btn">👤 Visão por Aluno</button>
+                                <button type="button" id="clear-pins-btn" class="secondary-btn hidden">Limpar Fixados (0)</button>
+                            </div>
                         </div>
                     </div>
                 </div>
+                <details class="tip-box" id="adjust-tip">
+                    <summary>💡 Como ajustar a escala à mão</summary>
+                    <ul>
+                        <li><strong>Trocar alguém de atividade:</strong> arraste o nome para outra atividade. No celular: toque no nome e depois na atividade de destino.</li>
+                        <li><strong>Tirar alguém:</strong> leve o nome até a caixa <em>Alunos</em> no fim do mês (arrastando ou tocando). Aparece um "Desfazer" caso tenha sido sem querer.</li>
+                        <li><strong>Colocar alguém:</strong> leve o nome da caixa <em>Alunos</em> até a atividade.</li>
+                        <li>Se houver algum problema (indisponibilidade, plantões seguidos…), o app avisa antes e você decide.</li>
+                        <li><strong>📌 Fixar:</strong> quem você move fica fixado. Ao gerar de novo, os fixados continuam no lugar e só o resto é redistribuído.</li>
+                        <li>Suas mudanças ficam salvas neste navegador, mesmo se fechar a página.</li>
+                    </ul>
+                </details>
                 <div id="statistics-output"></div>
                 <div id="calendar-output"></div>
                 <div id="student-view-output" class="hidden"></div>
             </div>
         </section>
 
+        <div class="bottom-grid">
         <section class="list-section" id="section-regras">
             <div class="collapsible-header" id="toggle-rules">
                 <div class="collapsible-header-title">
@@ -320,14 +381,15 @@
 
         <section class="data-management" id="section-dados">
             <h2>💾 Gerenciamento de Dados</h2>
-            <p class="data-help">Exporte seus dados para salvar um backup ou importe um arquivo de backup anterior (JSON).</p>
+            <p class="data-help">Seus dados ficam salvos <strong>só neste navegador</strong>. Baixe um backup para guardar uma cópia, mandar para outra pessoa continuar a escala ou abrir em outro computador (lá, use "Importar").</p>
             <div class="btn-group">
-                <button type="button" id="export-btn" class="backup-btn export">⬇️ Exportar JSON (Backup Completo)</button>
-                <button type="button" id="import-btn" class="backup-btn import">⬆️ Importar JSON (Backup Completo)</button>
-                <button type="button" id="delete-all-btn" class="backup-btn delete">🗑️ Excluir Todos os Dados</button>
+                <button type="button" id="export-btn" class="backup-btn export">⬇️ Baixar backup (.json)</button>
+                <button type="button" id="import-btn" class="backup-btn import">⬆️ Importar backup</button>
+                <button type="button" id="delete-all-btn" class="backup-btn delete">🗑️ Começar do zero</button>
                 <input type="file" id="import-file" accept=".json" style="display: none;">
             </div>
         </section>
+        </div>
 
         <footer class="app-footer">
             <p>Desenvolvido por <strong>Gabriel Tetzlaf</strong></p>
@@ -336,6 +398,71 @@
             </p>
         </footer>
     </main>
+
+    <!-- Barra do "tocar para mover" -->
+    <div id="move-bar" class="move-bar hidden" role="status" aria-live="polite">
+        <span id="move-bar-text"></span>
+        <button type="button" id="move-bar-cancel" class="secondary-btn">Cancelar</button>
+    </div>
+
+    <!-- Avisos rápidos (toasts) -->
+    <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+    <!-- Confirmação dentro do app (substitui o confirm() do navegador) -->
+    <div id="confirm-modal" class="modal hidden" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-message">
+        <div class="modal-content confirm-modal-content">
+            <h2 id="confirm-title">Confirmar</h2>
+            <p id="confirm-message" class="confirm-message"></p>
+            <ul id="confirm-details" class="confirm-details"></ul>
+            <div class="confirm-actions">
+                <button type="button" id="confirm-extra" class="secondary-btn hidden"></button>
+                <button type="button" id="confirm-cancel" class="secondary-btn">Cancelar</button>
+                <button type="button" id="confirm-ok">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Conteúdo de impressão/PDF (montado ao clicar em Imprimir) -->
+    <div id="print-output" aria-hidden="true"></div>
+
+    <!-- Modal: Criar planilha no Google Sheets -->
+    <div id="sheets-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="sheets-modal-title">
+        <div class="modal-content sheets-modal-content">
+            <button type="button" class="close-modal sheets-close" aria-label="Fechar">&times;</button>
+            <h2 id="sheets-modal-title">🟢 Levar a escala para o Google Sheets</h2>
+
+            <div class="sheets-option">
+                <h3>Jeito rápido <span class="sheets-tag">tudo em uma aba só</span></h3>
+                <ol class="sheets-steps">
+                    <li>Clique em <strong>📋 Copiar dados</strong>.</li>
+                    <li>Clique em <strong>➕ Nova planilha</strong> — uma planilha em branco do Google Sheets abre em outra aba.</li>
+                    <li>Na planilha nova, clique na célula <strong>A1</strong> e cole: <kbd>Cmd</kbd>+<kbd>V</kbd> no Mac ou <kbd>Ctrl</kbd>+<kbd>V</kbd> no Windows.</li>
+                </ol>
+                <p class="sheets-note">As semanas ficam uma embaixo da outra, com o Balanço de horas à direita.</p>
+                <div class="sheets-actions">
+                    <button type="button" id="sheets-copy-btn">📋 Copiar dados</button>
+                    <button type="button" id="sheets-new-btn" class="secondary-btn">➕ Nova planilha</button>
+                </div>
+                <p id="sheets-status" class="sheets-status" role="status" aria-live="polite"></p>
+            </div>
+
+            <details class="sheets-option sheets-full">
+                <summary>Quer <strong>uma aba por semana</strong> (SEM 1, SEM 2… e Balanço), igual ao arquivo .xlsx?</summary>
+                <ol class="sheets-steps">
+                    <li>Clique em <strong>⬇️ Baixar .xlsx</strong> abaixo. O arquivo vai para a pasta <strong>Downloads</strong> (nome começa com <code>escala_</code>).</li>
+                    <li>Clique em <strong>➕ Nova planilha</strong> para abrir uma planilha em branco.</li>
+                    <li>No Google Sheets, abra o menu <strong>Arquivo</strong> → <strong>Importar</strong>.</li>
+                    <li>Na janela que abrir, vá na aba <strong>Fazer upload</strong>, clique em <strong>Procurar</strong> e escolha o arquivo <code>escala_….xlsx</code> da pasta Downloads (ou arraste o arquivo para a janela).</li>
+                    <li>Em <strong>Local de importação</strong>, escolha <strong>Substituir planilha</strong> e clique em <strong>Importar dados</strong>.</li>
+                </ol>
+                <p class="sheets-note">Pronto: cada semana fica em uma aba, com as cores, e o Balanço na última aba.</p>
+                <div class="sheets-actions">
+                    <button type="button" id="sheets-xlsx-btn">⬇️ Baixar .xlsx</button>
+                    <button type="button" id="sheets-new-btn-2" class="secondary-btn">➕ Nova planilha</button>
+                </div>
+            </details>
+        </div>
+    </div>
 
     <!-- Edit Modal -->
     <div id="edit-modal" class="modal hidden">
@@ -346,6 +473,7 @@
         </div>
     </div>
 
+    <script src="schedule-export.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

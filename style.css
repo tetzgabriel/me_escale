@@ -967,7 +967,7 @@ button:active {
 
 .action-btns {
     display: flex;
-    gap: 10px;
+    gap: 12px 28px;
     flex-wrap: wrap;
 }
 
@@ -983,7 +983,7 @@ button:active {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 26px;
+    margin-bottom: 16px;
     flex-wrap: wrap;
     gap: 15px;
 }
@@ -1423,19 +1423,178 @@ button:active {
     border-radius: var(--radius-sm);
 }
 
-.time-range input[type="time"] {
+.time-range input[type="time"],
+.time-range input.br-time-input {
     border: none;
     padding: 0;
     width: auto;
 }
 
-.time-range input[type="time"]:focus {
+.time-range input[type="time"]:focus,
+.time-range input.br-time-input:focus {
     box-shadow: none;
 }
 
 .time-range span {
     font-size: 12px;
     color: var(--text-faint);
+}
+
+.form-group .br-time-input {
+    width: 100%;
+}
+
+.time-range .br-time-input {
+    width: 5.5em;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ==========================================================================
+   Campos de data no formato brasileiro (dd/mm/aaaa + botão de calendário)
+   ========================================================================== */
+.br-date-field {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    flex: 1 1 auto;
+    min-width: 11em;
+}
+
+.br-date-field .br-date-input {
+    width: 100%;
+    padding-right: 38px;
+    font-variant-numeric: tabular-nums;
+}
+
+.br-date-picker-btn {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    margin: 0;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.br-date-picker-btn:hover {
+    background: transparent;
+    transform: translateY(-50%) scale(1.1);
+}
+
+.br-date-picker-native {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+    border: 0;
+    padding: 0;
+}
+
+/* ==========================================================================
+   Layout em telas largas: mais conteúdo lado a lado
+   ========================================================================== */
+.settings-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0 28px;
+}
+
+.settings-side .exceptions-section {
+    margin-top: 0;
+}
+
+/* Linhas de data/hora + botão: quebram em vez de vazar quando a coluna é estreita */
+.exceptions-section .form-row,
+.preferences-section .form-row {
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+}
+
+.exceptions-section .form-row > button,
+.preferences-section .form-row > button {
+    flex: 0 0 auto;
+}
+
+.student-name-group {
+    flex: 2 !important;
+}
+
+.bottom-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 28px;
+    align-items: start;
+}
+
+@media (min-width: 1200px) {
+    .page,
+    .app-header-inner {
+        max-width: 1440px;
+    }
+
+    .settings-grid {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        align-items: start;
+    }
+
+    .settings-side .exceptions-section {
+        margin-top: 4px;
+    }
+
+    /* Atividades e Alunos: formulário à esquerda, lista à direita (rola dentro do painel) */
+    .step-block {
+        display: grid;
+        grid-template-columns: minmax(480px, 11fr) minmax(0, 13fr);
+        gap: 24px;
+        align-items: start;
+    }
+
+    .step-block .list-section {
+        position: sticky;
+        top: 96px;
+        max-height: calc(100vh - 120px);
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+
+    .step-block .list-section .collapsible-content {
+        overflow-y: auto;
+        min-height: 0;
+        padding-right: 4px;
+    }
+
+    .step-block .card-actions {
+        flex-direction: row;
+    }
+
+    .step-block .activity-card,
+    .step-block .student-card {
+        padding: 12px 16px;
+        margin-bottom: 10px;
+    }
+
+    .step-block .activity-details {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 18px;
+    }
+
+    .bottom-grid {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
 }
 
 /* ==========================================================================
@@ -1563,5 +1722,750 @@ button:active {
 
     .calendar-event.empty-slot {
         background: #eee !important;
+    }
+}
+
+/* ==========================================================================
+   Avisos rápidos (toasts)
+   ========================================================================== */
+.toast-container {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: 1100;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: min(440px, calc(100vw - 32px));
+    pointer-events: none;
+}
+
+.toast {
+    pointer-events: auto;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 12px 12px 16px;
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border-strong);
+    border-left: 5px solid var(--primary);
+    box-shadow: var(--shadow-lg);
+    font-size: 14px;
+    line-height: 1.45;
+    animation: toast-in 0.18s ease-out;
+}
+
+.toast-success { border-left-color: var(--success); }
+.toast-error { border-left-color: var(--danger); }
+.toast-warning { border-left-color: var(--warning); }
+
+.toast-text {
+    flex: 1;
+    white-space: pre-line;
+    padding-top: 2px;
+}
+
+.toast button.toast-action {
+    width: auto;
+    margin: 0;
+    padding: 5px 12px;
+    font-size: 13px;
+    flex-shrink: 0;
+}
+
+.toast button.toast-close {
+    width: 26px;
+    height: 26px;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    color: var(--text-faint);
+    font-size: 20px;
+    line-height: 1;
+    flex-shrink: 0;
+    box-shadow: none;
+}
+
+.toast button.toast-close:hover {
+    color: var(--text);
+    background: var(--surface-sunken);
+    box-shadow: none;
+}
+
+@keyframes toast-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: none; }
+}
+
+@media (max-width: 600px) {
+    .toast-container {
+        left: 16px;
+        right: 16px;
+        bottom: 16px;
+        max-width: none;
+    }
+}
+
+/* ==========================================================================
+   Confirmação dentro do app
+   ========================================================================== */
+#confirm-modal {
+    z-index: 1050;
+}
+
+.confirm-modal-content {
+    max-width: 520px;
+}
+
+.confirm-modal-content h2 {
+    font-size: 19px;
+    margin: 0 0 10px;
+}
+
+.confirm-message {
+    white-space: pre-line;
+    line-height: 1.55;
+    margin: 0;
+    color: var(--text);
+}
+
+.confirm-details {
+    margin: 10px 0 0;
+    padding-left: 20px;
+    line-height: 1.5;
+    color: var(--text);
+}
+
+.confirm-details li + li {
+    margin-top: 4px;
+}
+
+.confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 22px;
+}
+
+.confirm-actions button {
+    width: auto;
+    margin: 0;
+}
+
+.confirm-actions #confirm-extra {
+    margin-right: auto;
+}
+
+button.danger-btn {
+    background: var(--danger);
+    color: #fff;
+}
+
+button.danger-btn:hover {
+    background: color-mix(in srgb, var(--danger) 85%, #000);
+}
+
+@media (max-width: 600px) {
+    .confirm-actions {
+        flex-direction: column-reverse;
+    }
+    .confirm-actions button {
+        width: 100%;
+    }
+    .confirm-actions #confirm-extra {
+        margin-right: 0;
+    }
+}
+
+/* ==========================================================================
+   Guia "Como usar" e progresso
+   ========================================================================== */
+.guide-card {
+    background: linear-gradient(135deg, var(--primary-light), var(--surface));
+    border: 1px solid color-mix(in srgb, var(--primary) 25%, var(--border));
+    border-radius: var(--radius-lg);
+    padding: 22px 26px;
+    box-shadow: var(--shadow-sm);
+}
+
+.guide-card.hidden {
+    display: none;
+}
+
+.guide-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.guide-head h2 {
+    font-size: 1.15rem;
+    margin: 0 0 4px;
+}
+
+.guide-head .section-hint a {
+    color: var(--primary);
+}
+
+button.guide-hide {
+    width: auto;
+    margin: 0;
+    flex-shrink: 0;
+}
+
+.guide-steps {
+    list-style: none;
+    margin: 18px 0 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 12px;
+}
+
+.guide-steps a {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto auto;
+    column-gap: 10px;
+    row-gap: 2px;
+    height: 100%;
+    padding: 12px 14px;
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    text-decoration: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.guide-steps a:hover {
+    border-color: var(--primary);
+    box-shadow: var(--shadow-sm);
+}
+
+.guide-steps strong {
+    align-self: center;
+}
+
+.guide-steps a > span:last-child {
+    grid-column: 1 / -1;
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.45;
+}
+
+.guide-check {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 2px solid var(--border-strong);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    counter-increment: guide;
+}
+
+.guide-steps {
+    counter-reset: guide;
+}
+
+.guide-check::before {
+    content: counter(guide);
+    color: var(--text-muted);
+}
+
+.guide-steps li.done .guide-check {
+    background: var(--success);
+    border-color: var(--success);
+}
+
+.guide-steps li.done .guide-check::before {
+    content: "✓";
+    color: #fff;
+}
+
+.step-badge.done {
+    background: var(--success);
+}
+
+.quick-nav a.nav-help {
+    border: 1px solid var(--border-strong);
+}
+
+/* ==========================================================================
+   Salvamento automático, dicas e avisos
+   ========================================================================== */
+.table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.health-howto {
+    margin: 10px 0 0;
+    font-size: 13px;
+}
+
+.save-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+
+.save-row button {
+    flex: 1 1 260px;
+}
+
+.save-status {
+    margin-top: 22px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--success);
+    opacity: 0;
+    transition: opacity 0.25s;
+}
+
+.save-status.visible {
+    opacity: 1;
+}
+
+.form-hint-row {
+    margin-top: -6px;
+}
+
+.type-badge.type-plantao {
+    background: color-mix(in srgb, var(--success) 18%, transparent);
+    color: var(--success);
+}
+
+.stale-banner {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    background: var(--warning-light);
+    border: 1px solid color-mix(in srgb, var(--warning) 40%, transparent);
+    color: var(--text);
+    padding: 12px 16px;
+    border-radius: var(--radius-md);
+    margin-bottom: 18px;
+    font-size: 14px;
+    line-height: 1.45;
+}
+
+.stale-banner.hidden {
+    display: none;
+}
+
+.stale-banner span {
+    flex: 1 1 320px;
+}
+
+.stale-banner button {
+    width: auto;
+    margin: 0;
+    flex-shrink: 0;
+}
+
+.tip-box {
+    margin: 4px 0 18px;
+    padding: 12px 16px;
+    border-radius: var(--radius-md);
+    background: var(--primary-light);
+    border: 1px solid color-mix(in srgb, var(--primary) 20%, transparent);
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.tip-box summary {
+    cursor: pointer;
+    font-weight: 650;
+}
+
+.tip-box ul {
+    margin: 10px 0 2px;
+    padding-left: 20px;
+}
+
+.tip-box li + li {
+    margin-top: 4px;
+}
+
+.toolbar-group {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.toolbar-label {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-faint);
+    margin-right: 2px;
+}
+
+.secondary-btn.share-primary {
+    border-color: color-mix(in srgb, var(--success) 55%, transparent);
+}
+
+/* ==========================================================================
+   Tocar para mover (alternativa ao arrastar)
+   ========================================================================== */
+.move-bar {
+    position: fixed;
+    left: 50%;
+    bottom: 20px;
+    transform: translateX(-50%);
+    z-index: 1090;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    max-width: min(640px, calc(100vw - 32px));
+    padding: 12px 14px 12px 18px;
+    border-radius: var(--radius-md);
+    background: var(--primary);
+    color: var(--primary-contrast);
+    box-shadow: var(--shadow-lg);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+.move-bar.hidden {
+    display: none;
+}
+
+.move-bar button {
+    width: auto;
+    margin: 0;
+    flex-shrink: 0;
+}
+
+.calendar-student-tag {
+    cursor: pointer;
+    white-space: nowrap;      /* nome nunca quebra no meio ("Wen del") */
+    word-break: normal;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.calendar-student-tag.move-selected {
+    outline: 3px solid var(--warning);
+    outline-offset: 1px;
+}
+
+body.moving-student .calendar-event {
+    cursor: copy;
+}
+
+body.moving-student .calendar-event:hover,
+body.moving-student .calendar-roster:hover {
+    outline: 2px dashed var(--warning);
+    outline-offset: 2px;
+}
+
+/* Telas de toque: nomes maiores para acertar o toque */
+@media (pointer: coarse) {
+    .calendar-student-tag {
+        padding: 6px 8px;
+        font-size: 12px;
+    }
+}
+
+body.moving-student .toast-container {
+    bottom: 96px;
+}
+
+.roster-hint {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+/* Âncoras do menu não ficam escondidas atrás do cabeçalho fixo */
+main.page section[id],
+main.page .step-block[id] {
+    scroll-margin-top: 90px;
+}
+
+@media (max-width: 600px) {
+    /* No celular o calendário rola para o lado dentro da própria caixa, com colunas largas o bastante para os nomes */
+    .calendar-month {
+        min-width: 860px;
+    }
+
+    .br-date-field {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .form-row > * {
+        min-width: 0;
+    }
+
+    .time-range {
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .time-range .br-time-input {
+        flex: 1 1 0;
+        min-width: 0;
+        width: auto;
+    }
+    .move-bar {
+        bottom: 12px;
+        flex-direction: column;
+        align-items: stretch;
+        text-align: center;
+    }
+}
+
+/* ==========================================================================
+   Modal: levar a escala para o Google Sheets
+   ========================================================================== */
+.sheets-modal-content {
+    max-width: 640px;
+}
+
+.sheets-modal-content h2 {
+    margin: 0 36px 18px 0;
+    font-size: 20px;
+}
+
+button.sheets-close {
+    display: flex;
+    width: 30px;
+    padding: 0;
+    margin: 0;
+    background: transparent;
+    color: var(--text-faint);
+    box-shadow: none;
+}
+
+button.sheets-close:hover {
+    background: var(--surface-sunken);
+    color: var(--text);
+    box-shadow: none;
+}
+
+.sheets-option {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 16px 18px;
+    background: var(--surface-alt);
+}
+
+.sheets-option + .sheets-option {
+    margin-top: 14px;
+}
+
+.sheets-option h3 {
+    margin: 0 0 10px;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.sheets-tag {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    background: var(--surface-sunken);
+    border-radius: var(--radius-pill);
+    padding: 2px 10px;
+}
+
+.sheets-steps {
+    margin: 0;
+    padding-left: 22px;
+    line-height: 1.55;
+}
+
+.sheets-steps li + li {
+    margin-top: 6px;
+}
+
+.sheets-note {
+    margin: 10px 0 0;
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.sheets-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+}
+
+.sheets-actions button {
+    width: auto;
+    margin-top: 0;
+    flex: 1 1 180px;
+}
+
+.sheets-status {
+    margin: 10px 0 0;
+    font-size: 14px;
+    font-weight: 600;
+    min-height: 1em;
+}
+
+.sheets-status:empty {
+    display: none;
+}
+
+.sheets-status.success {
+    color: var(--success);
+}
+
+.sheets-status.error {
+    color: var(--danger, #dc2626);
+}
+
+.sheets-full summary {
+    cursor: pointer;
+    line-height: 1.5;
+}
+
+.sheets-full[open] summary {
+    margin-bottom: 12px;
+}
+
+.sheets-modal-content kbd {
+    font-family: var(--font);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border: 1px solid var(--border-strong);
+    border-bottom-width: 2px;
+    border-radius: 5px;
+    background: var(--surface);
+}
+
+.sheets-modal-content code {
+    font-size: 13px;
+    background: var(--surface-sunken);
+    padding: 1px 5px;
+    border-radius: 4px;
+}
+
+/* ==========================================================================
+   Impressão / PDF da escala: uma página paisagem por semana (mesmo formato do .xlsx)
+   ========================================================================== */
+#print-output {
+    display: none;
+}
+
+@media print {
+    @page {
+        size: A4 landscape;
+        margin: 8mm;
+    }
+
+    body.printing-schedule > *:not(#print-output) {
+        display: none !important;
+    }
+
+    body.printing-schedule {
+        background: #fff !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    body.printing-schedule #print-output {
+        display: block !important;
+        color: #000;
+        font-family: Arial, Helvetica, sans-serif;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    .pw-page {
+        break-after: page;
+        page-break-after: always;
+    }
+
+    .pw-page:last-child {
+        break-after: auto;
+        page-break-after: auto;
+    }
+
+    .pw-title {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        font-size: 11pt;
+        margin: 0 0 3mm;
+        padding-bottom: 1.5mm;
+        border-bottom: 1px solid #000;
+    }
+
+    .pw-title span {
+        font-size: 10pt;
+    }
+
+    .pw-grid {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+        font-size: 8.5pt;
+        line-height: 1.1;
+    }
+
+    .pw-grid thead {
+        display: table-header-group;
+    }
+
+    .pw-grid td {
+        height: var(--pw-row, 13pt);
+        padding: 0 2px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .pw-grid tr.pw-gap td {
+        height: calc(var(--pw-row, 13pt) * 0.45);
+    }
+
+    .pw-group {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    .pw-rot {
+        writing-mode: vertical-rl;
+        transform: rotate(180deg);
+        white-space: nowrap;
+        margin: 0 auto;
+        font-size: 0.95em;
+    }
+
+    .pw-balance-table {
+        border-collapse: collapse;
+        font-size: 10pt;
+    }
+
+    .pw-balance-table td,
+    .pw-balance-table th {
+        height: 16pt;
+        white-space: nowrap;
     }
 }
